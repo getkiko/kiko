@@ -28,6 +28,13 @@ mkdir -p "$out"
 
 core="$root/core"
 core_version=$(cd "$core" && CGO_ENABLED=0 GOOS= GOARCH= go run ./cmd/internal/read_tag)
+# Release builds must carry the core's real version; a checkout without the
+# core's git history reports "unknown".
+if [ "${CI:-}" = true ]; then
+  case "$core_version" in
+    "" | unknown) echo "cannot read the core version; check out core/ with its history and tags" >&2; exit 1 ;;
+  esac
+fi
 core_tags=$(cat "$core/release/DEFAULT_BUILD_TAGS_OTHERS")
 core_ldflags=$(cat "$core/release/LDFLAGS")
 
