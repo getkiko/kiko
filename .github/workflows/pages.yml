@@ -1,0 +1,52 @@
+# Deploys the documentation site on its own: when a release is published by
+# hand (the release workflow deploys it after publishing too), or from the
+# Actions page. The site shows the latest published release's version.
+name: Pages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  pages:
+    name: Documentation site
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: scripts/release/site/go.mod
+          cache: false
+      - name: Find the latest release
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+      - name: Generate the site
+        working-directory: scripts/release/site
+        env:
+          GOWORK: "off"
+        run: go run . -repo "$GITHUB_REPOSITORY" -version "${{ steps.version.outputs.version }}" -o "$RUNNER_TEMP/site"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/site
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
