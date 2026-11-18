@@ -1,0 +1,21 @@
+name: GetCookie
+desc: 最后更新时间 2025-07-12 02:11:47
+version: 
+counts: hostnames=7 rewrites=0 scripts=9 rules=0 fetches=6 unsupported=0
+include: apph5.manmanbuy.com c.tieba.baidu.com fmapp.chinafamilymart.com.cn luka-graphql.ling.cn maicai.api.ddxq.mobi tiebac.baidu.com user-api.smzdm.com
+exclude: 
+script: Fa米家_获取cookie http-request tag=Fa_____cookie pattern=^https?:\/\/fmapp\.chinafamilymart\.com\.cn\/api\/app\/market\/member\/(signin\/usersign|sign\/current) cron="" body=false bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: Luka_获取cookie http-request tag=Luka___cookie pattern=^https?:\/\/luka\-graphql\.ling\.cn\/graphql\/mobile\?operation=UserInfoWithPendingRobotQuery cron="" body=false bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 什么值得买_获取cookie http-request tag=script pattern=^https?:\/\/user-api\.smzdm\.com\/checkin$ cron="" body=false bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 叮咚买菜_获取cookie http-request tag=script-2 pattern=^https?:\/\/maicai\.api\.ddxq\.mobi\/point\/home\?api_version cron="" body=false bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 慢慢买_获取cookie http-request tag=cookie pattern=^https?:\/\/apph5\.manmanbuy\.com\/taolijin\/(login.aspx|logserver.aspx) cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 贴吧_获取cookie1 http-request tag=cookie1 pattern=https?:\/\/(c\.tieba\.baidu\.com|180\.97\.\d+\.\d+)\/c\/s\/login cron="" body=false bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 贴吧_获取cookie2 http-request tag=cookie2 pattern=^https?:\/\/c\.tieba\.baidu\.com\/c\/s\/channelIconConfig cron="" body=false bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 贴吧_获取cookie3 http-request tag=cookie3 pattern=^https?:\/\/tiebac\.baidu\.com\/c\/u\/follow\/getFoldedMessageUserInfo cron="" body=false bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 贴吧_获取cookie4 http-request tag=cookie4 pattern=^https?:\/\/tiebac\.baidu\.com\/c\/s\/getClientConfig cron="" body=false bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+fetch: script https://gist.githubusercontent.com/blackmatrix7/cebabe7a385fc6a9ad32e2f7a35851dc/raw/1363d8720c92267d0a97fcd8eb98673760891fc9/tieba_min.js
+fetch: script https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/script/dingdong/dingdong_checkin.js
+fetch: script https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/script/famijia/famijia_checkin.js
+fetch: script https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/script/luka/luka_signin.js
+fetch: script https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/script/manmanbuy/manmanbuy_checkin.js
+fetch: script https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/script/smzdm/smzdm_daily.js

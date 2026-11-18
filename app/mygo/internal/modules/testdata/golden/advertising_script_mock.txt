@@ -1,0 +1,57 @@
+name: AdvertisingScript
+desc: 最后更新时间 2025-06-06 09:20:18
+version: 
+counts: hostnames=19 rewrites=11 scripts=25 rules=5 fetches=3 unsupported=7
+include: *.cupid.iqiyi.com 103.41.167.226 103.41.167.234 103.41.167.235 103.41.167.236 103.41.167.237 118.89.204.198 api.m.jd.com api.zhihu.com app.bilibili.com appcloud2.zhihu.com cmsapi.dmall.com fmapp.chinafamilymart.com.cn hd.mina.mi.com m-cloud.zhihu.com mi.gdt.qq.com wmapi.meituan.com www.zhihu.com zhuanlan.zhihu.com
+exclude: 
+maplocal: 200 ^https?:\/\/103\.41\.167\.237 headers=[] body="{}" b64=""
+maplocal: 200 ^https?:\/\/118\.89\.204\.198 headers=[] body="{}" b64=""
+maplocal: 200 ^https?:\/\/2402:4e00:1200:ed00:0:9089:6dac:96b6 headers=[] body="{}" b64=""
+maplocal: 200 ^https?:\/\/api\.zhihu\.com\/(notifications\/v\d\/count) headers=[] body="{}" b64=""
+maplocal: 200 ^https?:\/\/api\.zhihu\.com\/ab\/api\/v1\/products\/zhihu\/platforms\/ios\/config headers=[] body="{}" b64=""
+maplocal: 200 ^https?:\/\/api\.zhihu\.com\/ad-style-service\/request headers=[] body="{}" b64=""
+maplocal: 200 ^https?:\/\/api\.zhihu\.com\/api\/v4\/ecom_data\/config headers=[] body="{}" b64=""
+maplocal: 200 ^https?:\/\/api\.zhihu\.com\/commercial_api\/banners_v3\/app_topstory_banner headers=[] body="{}" b64=""
+maplocal: 200 ^https?:\/\/api\.zhihu\.com\/content-distribution-core\/bubble\/common\/settings headers=[] body="{}" b64=""
+maplocal: 200 ^https?:\/\/api\.zhihu\.com\/fringe\/ad headers=[] body="{}" b64=""
+maplocal: 200 ^https?:\/\/www\.zhihu\.com\/api\/v\d+\/search\/related_queries\/answer headers=[] body="{}" b64=""
+script: 哲也_解锁关键词屏蔽 http-request tag=script pattern=^https?:\/\/api\.zhihu\.com\/feed-root\/block cron="" body=false bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: BiliBili_开屏去广告 http-response tag=BiliBili pattern=^https?:\/\/app\.bilibili\.com\/x\/v2\/splash\/list cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: Fa米家_开屏去广告 http-response tag=script-2 pattern=^https?:\/\/fmapp\.chinafamilymart\.com\.cn\/api\/app\/market\/start\/ad cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 京东_开屏去广告 http-response tag=script-3 pattern=^https?:\/\/hd\.mina\.mi\.com\/splashscreen\/alert cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_优化软件配置1 http-response tag=script-4 pattern=^https?:\/\/m-cloud\.zhihu\.com\/api\/cloud\/config\/all\? cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_优化软件配置2 http-response tag=script-5 pattern=^https?:\/\/appcloud2\.zhihu\.com\/v\d+\/config cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_优化软件配置3 http-response tag=script-6 pattern=^https?:\/\/api\.zhihu\.com\/feed\/render\/revisit\/current_reading cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_修改用户盐值 http-response tag=script-7 pattern=^https?:\/\/api\.zhihu\.com\/user-credit\/basis cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_关注列表优化 http-response tag=script-8 pattern=^https?:\/\/api\.zhihu\.com\/moments\/tab_v2 cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_同步黑名单 http-response tag=script-9 pattern=^https?:\/\/api\.zhihu\.com\/settings\/blocked_users cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_回答列表优化 http-response tag=script-11 pattern=^https?:\/\/api\.zhihu\.com\/(v4\/)?questions\/\d+ cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_回答翻页优化 http-response tag=script-12 pattern=^https?:\/\/api\.zhihu\.com\/next\? cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_处理用户信息 http-response tag=script-13 pattern=^https?:\/\/api\.zhihu\.com\/people cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_推荐页优化 http-response tag=script-14 pattern=^https?:\/\/api\.zhihu\.com\/moments\/recent cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_文章优化 http-response tag=script-15 pattern=^https?:\/\/www\.zhihu\.com\/api\/v4\/answers\/\d+\/recommendations cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_消息优化 http-response tag=script-16 pattern=^https?:\/\/api\.zhihu\.com\/notifications\/v3\/(message\?|timeline\/entry\/system_message) cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_热榜优化 http-response tag=script-17 pattern=^https?:\/\/api\.zhihu\.com\/topstory\/hot-lists?(\?|\/) cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_评论优化 http-response tag=script-18 pattern=^https?:\/\/api\.zhihu\.com\/(comment_v5\/)?(answers|comments?|articles|pins)\/\d+\/(root_|child_)?comments? cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_评论摘要优化 http-response tag=script-19 pattern=^https?:\/\/www\.zhihu\.com\/api\/v4\/comment_v5\/answers\/\d+\/abstract_comment\? cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 哲也_预置关键词优化 http-response tag=script-20 pattern=^https?:\/\/api\.zhihu\.com\/search\/preset_words\? cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 嘀嗒出行_开屏去广告 http-response tag=script-21 pattern=^https?:\/\/capis(-?\w*)?\.didapinche\.com\/ad\/cx\/startup\? cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 多点_开屏去广告 http-response tag=script-22 pattern=^https?:\/\/cmsapi\.dmall\.com\/app\/home\/homepageStartUpPic cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 爱奇艺_开屏去广告 http-response tag=script-23 pattern=^https?:\/\/(t7z|kjp)\.cupid\.iqiyi\.com\/mixer\? cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 美团外卖_开屏去广告 http-response tag=script-24 pattern=^https?:\/\/wmapi\.meituan\.com\/api\/v\d+\/loadInfo? cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: 联享家_开屏去广告 http-response tag=script-25 pattern=^https?:\/\/mi\.gdt\.qq\.com\/gdt_mview\.fcg cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+rule: domain appcloud.zhihu.com reject noresolve=false
+rule: domain appcloud2.in.zhihu.com reject noresolve=false
+rule: domain crash2.zhihu.com reject noresolve=false
+rule: domain mqtt.zhihu.com reject noresolve=false
+rule: domain sugar.zhihu.com reject noresolve=false
+fetch: data https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/blank/blank_dict.json
+fetch: script https://gist.githubusercontent.com/blackmatrix7/f5f780d0f56b319b6ad9848fd080bb18/raw/zheye.min.js
+fetch: script https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/script/startup/startup.js
+unsupported: [Rule:20] 规则类型「URL-REGEX」不支持 | URL-REGEX,^https?:\/\/api\.zhihu\.com\/brand\/question\/\d+/card\?,REJECT
+unsupported: [Rule:21] 规则类型「URL-REGEX」不支持 | URL-REGEX,^https?:\/\/api\.zhihu\.com\/commercial_api\/launch_v2\?,REJECT
+unsupported: [Rule:22] 规则类型「URL-REGEX」不支持 | URL-REGEX,^https?:\/\/api\.zhihu\.com\/commercial_api\/real_time_launch_v2\?,REJECT
+unsupported: [Rule:23] 规则类型「URL-REGEX」不支持 | URL-REGEX,^https?:\/\/www\.zhihu\.com\/api\/v\d+\/brand\/question/\d+/card\?,REJECT
+unsupported: [MITM:66] 主机名「2402:4e00:1200:ed00:0:9089:6dac:96b6」格式不被支持 | hostname = %APPEND% *.cupid.iqiyi.com,103.41.167.226,103.41.167.234,103.41.167.235,103.41.167.236,103.41.167.237,118.89.204.198,2402:4e00:1200:ed00:0:9089:6dac:96b6,api.m.jd.com,api.zhihu.com,app.bili…
+unsupported: [MITM:66] 主机名「capis*.didapinche.com」格式不被支持 | hostname = %APPEND% *.cupid.iqiyi.com,103.41.167.226,103.41.167.234,103.41.167.235,103.41.167.236,103.41.167.237,118.89.204.198,2402:4e00:1200:ed00:0:9089:6dac:96b6,api.m.jd.com,api.zhihu.com,app.bili…
+unsupported: [Script:49] 脚本「script-10」：匹配模式无效 | 哲也_回答内容优化 = type=http-response,script-path=https://gist.githubusercontent.com/blackmatrix7/f5f780d0f56b319b6ad9848fd080bb18/raw/zheye.min.js,pattern="^https?:\/\/www\.zhihu\.com\/appvi…

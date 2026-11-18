@@ -1,0 +1,9 @@
+name: 拼多多
+desc: 某些APP要清除缓存或者重新安装拦截广告才会生效！
+version: 
+counts: hostnames=3 rewrites=3 scripts=0 rules=0 fetches=0 unsupported=0
+include: api.pinduoduo.com api.yangkeduo.com mobile.yangkeduo.com
+exclude: 
+url: reject ^https?:\/\/api\.(pinduoduo|yangkeduo)\.com\/api\/cappuccino\/splash -> 
+body: response ^https?:\/\/mobile\.yangkeduo\.com\/proxy\/api\/api\/express\/post\/waybill\/red_packet\/goods_list$ replace-regex "\"list\":\\[.+\\]" "" "\"list\":[]"
+maplocal: 200 ^https?:\/\/api\.pinduoduo\.com\/api\/aquarius\/hungary\/global\/homepage\? headers=[{Content-Type application/json}] body="{}" b64=""

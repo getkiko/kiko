@@ -1,0 +1,25 @@
+name: Bilibili Helper
+desc: 去除扰人内容 & 禁用 P2P 连接
+version: 
+argument: 运营商 = "cm"
+argument: 网络信息 = "CAIQBBoGbW9iaWxl"
+counts: hostnames=2 rewrites=7 scripts=7 rules=0 fetches=2 unsupported=1
+include: grpc.biliapi.net app.bilibili.com
+exclude: 
+header: request ^https:\/\/app\.bilibili\.com\/x\/v2\/(splash|search\?|feed\/index) delete x-tf-isp "" ""
+header: request ^https:\/\/app\.bilibili\.com\/x\/v2\/(splash|search\?|feed\/index) add x-tf-isp "" "cm"
+header: request ^https:\/\/grpc\.biliapi\.net\/bilibili\.app\.show\.v1 replace x-bili-network-bin "" "CAIQBBoGbW9iaWxl"
+header: request ^https:\/\/grpc\.biliapi\.net\/bilibili\.app\.(view|viewunite)\.v1\.View\/(View|ViewProgress)$ replace x-bili-network-bin "" "CAIQBBoGbW9iaWxl"
+header: request ^https:\/\/grpc\.biliapi\.net\/bilibili\.app\.playurl\.v1\.PlayURL\/PlayView replace x-bili-network-bin "" "CAIQBBoGbW9iaWxl"
+header: request ^https:\/\/grpc\.biliapi\.net\/bilibili\.polymer\.app\.search\.v1\.Search\/SearchAll$ replace x-bili-network-bin "" "CAIQBBoGbW9iaWxl"
+header: request ^https:\/\/grpc\.biliapi\.net\/bilibili\.pgc\.gateway\.player\.v2\.PlayURL\/PlayView replace x-bili-network-bin "" "CAIQBBoGbW9iaWxl"
+script: bilibili.helper.v2 http-response tag=bilibili.helper.v2 pattern=^https:\/\/app\.bilibili\.com\/x\/v2\/(splash|search\?|feed\/index) cron="" body=true bin=false max=33554432 timeout=0 disabled=false arg="" source="$done({});"
+script: bilibili.helper.dmView http-response tag=bilibili.helper.dmView pattern=^https:\/\/grpc\.biliapi\.net\/bilibili\.community\.service\.dm\.v1\.DM\/DmView cron="" body=true bin=true max=33554432 timeout=0 disabled=false arg="" source="$done({});"
+script: bilibili.helper.teenager http-response tag=bilibili.helper.teenager pattern=^https:\/\/grpc\.biliapi\.net\/bilibili\.app\.interface\.v1\.Teenagers\/ModeStatus cron="" body=true bin=true max=33554432 timeout=0 disabled=false arg="" source="$done({});"
+script: bilibili.helper.v1.view http-response tag=bilibili.helper.v1.view pattern=^https:\/\/grpc\.biliapi\.net\/bilibili\.app\.(view|viewunite)\.v1\.View\/(View|ViewProgress)$ cron="" body=true bin=true max=33554432 timeout=0 disabled=false arg="" source="$done({});"
+script: bilibili.helper.mainList http-response tag=bilibili.helper.mainList pattern=^https:\/\/grpc\.biliapi\.net\/bilibili\.main\.community\.reply\.v1\.Reply\/MainList cron="" body=true bin=true max=33554432 timeout=0 disabled=false arg="" source="$done({});"
+script: bilibili.helper.searchAll http-response tag=bilibili.helper.searchAll pattern=^https:\/\/grpc\.biliapi\.net\/bilibili\.polymer\.app\.search\.v1\.Search\/SearchAll$ cron="" body=true bin=true max=33554432 timeout=0 disabled=false arg="" source="$done({});"
+script: bilibili.helper.dynAll http-response tag=bilibili.helper.dynAll pattern=^https:\/\/grpc\.biliapi\.net\/bilibili\.app\.dynamic\.v2\.Dynamic\/DynAll$ cron="" body=true bin=true max=33554432 timeout=0 disabled=false arg="" source="$done({});"
+fetch: script https://raw.githubusercontent.com/Maasea/sgmodule/master/Script/Bilibili/bilibili.helper.js
+fetch: script https://raw.githubusercontent.com/Maasea/sgmodule/master/Script/Bilibili/bilibili.helper.v2.js
+unsupported: [Rule:18] 规则类型「DOMAIN-WILDCARD」不支持 | DOMAIN-WILDCARD,*pcdn*.biliapi.net,REJECT

@@ -1,0 +1,8 @@
+{
+  "name": "kiko-sync",
+  "pages_build_output_dir": "./public",
+  "compatibility_date": "2026-10-10",
+  "services": [
+    { "binding": "SYNC_BACKEND", "service": "kiko-sync" }
+  ]
+}

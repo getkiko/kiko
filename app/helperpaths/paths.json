@@ -1,0 +1,11 @@
+{
+  "label": "io.github.getkiko.kiko.helper",
+  "socket": "/var/run/io.github.getkiko.kiko.helper.sock",
+  "helperExecutable": "/Library/PrivilegedHelperTools/io.github.getkiko.kiko.helper",
+  "coreExecutable": "/Library/PrivilegedHelperTools/io.github.getkiko.kiko.core",
+  "helperLog": "/var/log/io.github.getkiko.kiko.helper.log",
+  "coreLog": "/var/log/io.github.getkiko.kiko.core.log",
+  "launchDaemon": "/Library/LaunchDaemons/io.github.getkiko.kiko.helper.plist",
+  "userDataSuffix": "Library/Application Support/Kiko/kiko-server",
+  "componentVersions": "/Library/PrivilegedHelperTools/io.github.getkiko.kiko.versions.json"
+}

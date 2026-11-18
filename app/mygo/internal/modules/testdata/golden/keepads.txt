@@ -1,0 +1,22 @@
+name: 去除 keep 广告
+desc: 可能需要重新安装Keep
+version: 
+counts: hostnames=2 rewrites=6 scripts=4 rules=1 fetches=4 unsupported=1
+include: api.gotokeep.com kad.gotokeep.com
+exclude: 
+url: reject ^https:\/\/api\.gotokeep\.com\/op-engine-webapp\/v1\/ad -> 
+url: reject ^https:\/\/api\.gotokeep\.com\/anno\/v1\/upgrade\/check$ -> 
+url: reject ^https?:\/\/api.gotokeep.com/cauchy/growth/init -> 
+url: reject ^https:\/\/api\.gotokeep\.com\/training\/box\/config -> 
+url: reject ^https:\/\/api\.gotokeep\.com\/op-engine-webapp\/tool\/v1\/jump\/popup$ -> 
+url: reject ^https:\/\/api\.gotokeep\.com\/athena\/v1\/people\/my\/entry -> 
+script: K-My http-response tag=K-My pattern=https:\/\/api\.gotokeep\.com\/athena\/v\d\/people\/my cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: K-Basic http-response tag=K-Basic pattern=https:\/\/api\.gotokeep\.com\/config\/v3/basic cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: K-Ad http-response tag=K-Ad pattern=https:\/\/kad\.gotokeep\.com\/op-engine-webapp\/v1\/ad cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+script: K-Course http-response tag=K-Course pattern=^https?:\/\/api\.gotokeep\.com\/athena\/v7\/people\/course\/(practiced|general) cron="" body=true bin=false max=0 timeout=0 disabled=false arg="" source="$done({});"
+rule: domain httpdns.calorietech.com reject noresolve=false
+fetch: script https://raw.githubusercontent.com/Maasea/surgeModule/master/Script/Keep/basic.js
+fetch: script https://raw.githubusercontent.com/Maasea/surgeModule/master/Script/Keep/course.js
+fetch: script https://raw.githubusercontent.com/Maasea/surgeModule/master/Script/Keep/kad.js
+fetch: script https://raw.githubusercontent.com/Maasea/surgeModule/master/Script/Keep/my.js
+unsupported: [Rule:5] 选项「extended-matching」已忽略 | DOMAIN,httpdns.calorietech.com,REJECT,extended-matching

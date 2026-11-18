@@ -1,0 +1,24 @@
+{
+  "name": "kiko-sync",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-10",
+  "kv_namespaces": [
+    {
+      "binding": "SYNC_KV",
+      // Replace with the id printed by `wrangler kv namespace create KIKO_SYNC`.
+      "id": "<KV_NAMESPACE_ID>"
+    }
+  ]
+  // Optional settings. Secrets (ADMIN_TOKEN, TURNSTILE_SECRET_KEY) are set with
+  // `wrangler secret put`, never here.
+  // "vars": {
+  //   // Restrict browser access to the sync API to one origin. The Kiko desktop
+  //   // app sends requests from its local server and does not need this.
+  //   "ALLOWED_ORIGIN": "https://example.com",
+  //   // Turn on Cloudflare Turnstile for share uploads (recommended for a public
+  //   // deployment); also set the TURNSTILE_SECRET_KEY secret.
+  //   "TURNSTILE_SITE_KEY": "<TURNSTILE_SITE_KEY>",
+  //   // Delete shared configurations this many days after their last upload.
+  //   "SHARE_TTL_DAYS": "30"
+  // }
+}

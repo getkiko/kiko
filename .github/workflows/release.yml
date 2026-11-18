@@ -1,0 +1,186 @@
+# Releases Kiko: builds the macOS and Windows desktop apps and the Linux
+# server, uploads them to this repository's release, and deploys the
+# documentation site to GitHub Pages. See RELEASING.md for the setup.
+#
+# Runs on a tag matching the version in app/mygo/mygo.json (such as v0.3.0),
+# or by hand from the Actions page.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check configuration and version
+        id: version
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+          MYGO_UPDATER_PUBLIC_KEY: ${{ vars.MYGO_UPDATER_PUBLIC_KEY }}
+        run: |
+          missing=
+          for name in MYGO_UPDATER_PRIVATE_KEY MYGO_UPDATER_PUBLIC_KEY; do
+            eval "value=\${$name:-}"
+            [ -n "$value" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository variables or secrets:$missing (see RELEASING.md)"
+            exit 1
+          fi
+          version=$(jq -r .version app/mygo/mygo.json)
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in mygo.json"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ steps.version.outputs.version }}
+        run: |
+          if draft=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2> /dev/null); then
+            # Assets are uploaded with --clobber; never replace those of a published release.
+            if [ "$draft" != true ]; then
+              echo "::error::Release $TAG is already published; bump the version in app/mygo/mygo.json to release again"
+              exit 1
+            fi
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "Kiko $TAG" --notes ""
+          fi
+
+  desktop:
+    name: ${{ matrix.name }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      # Platforms upload one at a time so their SHA256SUMS lines merge.
+      max-parallel: 1
+      matrix:
+        include:
+          - { name: macOS Apple silicon, os: macos-latest, goos: darwin, goarch: arm64 }
+          - { name: macOS Intel, os: macos-latest, goos: darwin, goarch: amd64 }
+          - { name: Windows x64, os: ubuntu-latest, goos: windows, goarch: amd64 }
+          - { name: Windows ARM64, os: ubuntu-latest, goos: windows, goarch: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.work
+          cache-dependency-path: "**/go.sum"
+      - name: Install NSIS for the Windows installers
+        if: matrix.goos == 'windows'
+        run: sudo apt-get update && sudo apt-get install -y nsis
+      - name: Check the release is still a draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.prepare.outputs.version }}
+        run: |
+          # Fails before the long build; build-desktop.sh checks again right
+          # before each upload (scripts/release/gh-draft-guard.sh).
+          draft=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)
+          if [ "$draft" != true ]; then
+            echo "::error::Release $TAG is no longer a draft; not uploading over it"
+            exit 1
+          fi
+      - name: Build and upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+          MYGO_UPDATER_PUBLIC_KEY: ${{ vars.MYGO_UPDATER_PUBLIC_KEY }}
+        run: scripts/release/build-desktop.sh "${{ matrix.goos }}" "${{ matrix.goarch }}"
+
+  server:
+    name: Linux server
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.work
+          cache-dependency-path: "**/go.sum"
+      - name: Build
+        run: scripts/release/package-server.sh amd64 arm64
+      - name: Check the release is still a draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.prepare.outputs.version }}
+        run: |
+          # Uploads replace assets; a release published meanwhile keeps its own.
+          draft=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)
+          if [ "$draft" != true ]; then
+            echo "::error::Release $TAG is no longer a draft; not uploading over it"
+            exit 1
+          fi
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.prepare.outputs.version }}
+        run: gh release upload "$TAG" app/build/release/* --repo "$GITHUB_REPOSITORY" --clobber
+
+  publish:
+    name: Publish
+    needs: [prepare, desktop, server]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.prepare.outputs.version }}
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+
+  pages:
+    name: Documentation site
+    needs: [prepare, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: scripts/release/site/go.mod
+          cache: false
+      - name: Generate the site
+        working-directory: scripts/release/site
+        env:
+          GOWORK: "off"
+        run: go run . -repo "$GITHUB_REPOSITORY" -version "${{ needs.prepare.outputs.version }}" -o "$RUNNER_TEMP/site"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/site
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

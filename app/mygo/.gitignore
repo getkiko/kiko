@@ -1,0 +1,20 @@
+# Build output from `mygo build` and the development app from `mygo dev`.
+build/
+.mygo/
+mygo.ts
+
+# Node dependencies for the mygo CLI, when a project has a frontend.
+node_modules/
+
+# Bun's lockfile is kept; the install directory is not.
+.bun/
+
+# Generated console, dashboard and per-platform helper executables.
+web/
+metacubexd/
+resources/darwin-*/
+resources/windows-*/
+resources/linux-*/
+
+# The binary `go build` writes in this directory.
+/mygo

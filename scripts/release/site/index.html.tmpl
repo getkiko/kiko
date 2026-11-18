@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kiko 下载与安装</title>
+<meta name="description" content="Kiko：基于 sing-box 的桌面客户端与服务器管理。一行命令安装与升级。">
+<style>
+:root {
+  --bg: #f5f5f7; --surface: #fff; --text: #1d1d1f; --muted: #6e6e73; --line: #d2d2d7;
+  --accent: #0a66d8; --code-bg: #f0f0f3; --chip: #e8e8ed;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161618; --surface: #1f1f22; --text: #f2f2f4; --muted: #a1a1a8; --line: #38383d;
+    --accent: #4c9bff; --code-bg: #2a2a2e; --chip: #2f2f34;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+main { max-width: 760px; margin: 0 auto; padding: 48px 16px 64px; }
+header h1 { font-size: 30px; margin: 0; letter-spacing: -0.01em; }
+header p { margin: 4px 0 0; color: var(--muted); }
+.version { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--chip); font-size: 13px; color: var(--muted); vertical-align: middle; font-variant-numeric: tabular-nums; }
+h2 { font-size: 18px; margin: 40px 0 12px; }
+h3 { font-size: 14px; margin: 20px 0 6px; color: var(--muted); font-weight: 600; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.picker { display: flex; gap: 4px; padding: 4px; margin: 28px 0 0; background: var(--chip); border-radius: 999px; width: fit-content; max-width: 100%; overflow-x: auto; }
+.picker input { position: absolute; opacity: 0; pointer-events: none; }
+.picker label { padding: 6px 16px; border-radius: 999px; cursor: pointer; white-space: nowrap; font-size: 14px; color: var(--muted); }
+#p-mac:checked ~ .picker label[for=p-mac],
+#p-win:checked ~ .picker label[for=p-win],
+#p-linux:checked ~ .picker label[for=p-linux] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+#p-mac:focus-visible ~ .picker label[for=p-mac],
+#p-win:focus-visible ~ .picker label[for=p-win],
+#p-linux:focus-visible ~ .picker label[for=p-linux] { outline: 2px solid var(--accent); outline-offset: 1px; }
+.radio { position: absolute; opacity: 0; pointer-events: none; }
+.panel { display: none; margin-top: 16px; padding: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+#p-mac:checked ~ .panels .mac, #p-win:checked ~ .panels .win, #p-linux:checked ~ .panels .linux { display: block; }
+.panel p { margin: 6px 0; }
+.cmd { display: flex; align-items: stretch; margin: 6px 0 4px; background: var(--code-bg); border-radius: 10px; overflow: hidden; }
+.cmd code { flex: 1; min-width: 0; padding: 10px 12px; overflow-x: auto; white-space: pre; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.cmd button { flex: none; border: 0; border-left: 1px solid var(--line); background: transparent; color: var(--accent); padding: 0 14px; font: inherit; font-size: 13px; cursor: pointer; }
+.cmd button:hover { background: var(--chip); }
+.note { color: var(--muted); font-size: 13px; }
+.files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.files a { padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; }
+section { margin-top: 8px; }
+dl { margin: 0; }
+dt { font-weight: 600; margin-top: 14px; }
+dd { margin: 2px 0 0; color: var(--muted); }
+code.inline { padding: 1px 6px; border-radius: 6px; background: var(--code-bg); font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Kiko <span class="version">v{{.Version}}</span></h1>
+  <p>基于 sing-box 的桌面客户端与服务器管理</p>
+</header>
+
+<input class="radio" type="radio" name="platform" id="p-mac" checked>
+<input class="radio" type="radio" name="platform" id="p-win">
+<input class="radio" type="radio" name="platform" id="p-linux">
+<div class="picker" role="tablist">
+  <label for="p-mac">macOS</label>
+  <label for="p-win">Windows</label>
+  <label for="p-linux">Linux 服务器</label>
+</div>
+
+<div class="panels">
+  <div class="panel mac">
+    <h3>安装</h3>
+    <p>在“终端”中运行，安装到“应用程序”文件夹并打开：</p>
+    <div class="cmd"><code>curl -fsSL {{.Latest}}/install.sh | sh</code><button type="button">复制</button></div>
+    <p class="note">首次开启 TUN 时会请求管理员密码，安装网络特权组件。</p>
+    <h3>升级</h3>
+    <p>应用每天自动检查新版本，也可以从菜单「Kiko → 检查更新…」立即检查。再次运行安装命令同样会升级到最新版本。</p>
+    <h3>卸载</h3>
+    <div class="cmd"><code>curl -fsSL {{.Latest}}/install.sh | sh -s -- --uninstall</code><button type="button">复制</button></div>
+    <h3>手动下载</h3>
+    <div class="files">
+      <a href="{{.DMG "arm64"}}">Apple 芯片 (.dmg)</a>
+      <a href="{{.DMG "amd64"}}">Intel (.dmg)</a>
+    </div>
+  </div>
+
+  <div class="panel win">
+    <h3>安装</h3>
+    <p>在 PowerShell 中运行，无需管理员权限：</p>
+    <div class="cmd"><code>irm {{.Latest}}/install.ps1 | iex</code><button type="button">复制</button></div>
+    <h3>升级</h3>
+    <p>应用每天自动检查新版本，也可以从菜单「Kiko → 检查更新…」立即检查。再次运行安装命令同样会升级到最新版本。</p>
+    <h3>卸载</h3>
+    <p>在「设置 → 应用 → 已安装的应用」中卸载 Kiko。</p>
+    <h3>手动下载</h3>
+    <div class="files">
+      <a href="{{.Installer "amd64"}}">x64 安装程序</a>
+      <a href="{{.Installer "arm64"}}">ARM64 安装程序</a>
+    </div>
+  </div>
+
+  <div class="panel linux">
+    <h3>安装</h3>
+    <p>在服务器上运行，安装为 systemd 服务并开机自启：</p>
+    <div class="cmd"><code>curl -fsSL {{.Latest}}/install-server.sh | sudo sh</code><button type="button">复制</button></div>
+    <p class="note">支持 x86_64 与 ARM64。远程访问默认使用 TLS 端口 9443，自定义端口：在 <code class="inline">sudo</code> 后加 <code class="inline">REMOTE_LISTEN=:19443</code>。</p>
+    <h3>配对客户端</h3>
+    <div class="cmd"><code>sudo kiko pair</code><button type="button">复制</button></div>
+    <p>在 Kiko 中选择「服务器 → 连接到服务器…」，粘贴输出的配对字符串。</p>
+    <h3>升级</h3>
+    <div class="cmd"><code>sudo kiko upgrade</code><button type="button">复制</button></div>
+    <p class="note">配置与数据保留；新版本启动失败时自动换回旧版本。</p>
+    <h3>卸载</h3>
+    <div class="cmd"><code>sudo kiko uninstall</code><button type="button">复制</button></div>
+    <p class="note">数据保留在 <code class="inline">/var/lib/kiko-server</code>；加 <code class="inline">--purge</code> 一并删除。</p>
+    <h3>手动下载</h3>
+    <div class="files">
+      <a href="{{.ServerArchive "amd64"}}">x86_64 (.tar.gz)</a>
+      <a href="{{.ServerArchive "arm64"}}">ARM64 (.tar.gz)</a>
+    </div>
+  </div>
+</div>
+
+<h2>安装指定版本</h2>
+<p>把命令中的 <code class="inline">latest/download</code> 换成 <code class="inline">download/v{{.Version}}</code> 即可安装该版本的桌面应用；Linux 服务器加参数：</p>
+<div class="cmd"><code>curl -fsSL {{.Latest}}/install-server.sh | sudo sh -s -- --version {{.Version}}</code><button type="button">复制</button></div>
+
+<h2>服务器管理</h2>
+<dl>
+  <dt><code class="inline">kiko status</code> · <code class="inline">logs</code> · <code class="inline">version</code></dt>
+  <dd>服务状态、实时日志与当前版本。</dd>
+  <dt><code class="inline">/etc/default/kiko-server</code></dt>
+  <dd>监听地址、远程访问端口与数据目录，修改后执行 <code class="inline">sudo kiko restart</code>。</dd>
+  <dt>防火墙</dt>
+  <dd>放行远程访问端口，例如 <code class="inline">sudo ufw allow 9443/tcp</code>。</dd>
+</dl>
+
+<h2>常见问题</h2>
+<dl>
+  <dt>macOS 提示“无法打开，因为无法验证开发者”</dt>
+  <dd>从浏览器下载的 .dmg 会带隔离标记。用上面的安装命令安装，或执行 <code class="inline">xattr -dr com.apple.quarantine /Applications/Kiko.app</code>。</dd>
+  <dt>Windows 提示“Windows 已保护你的电脑”</dt>
+  <dd>点击「更多信息 → 仍要运行」。</dd>
+  <dt>更新的安全性</dt>
+  <dd>桌面应用只安装用发布密钥签名的更新；服务器安装包下载后核对 SHA-256。</dd>
+</dl>
+
+<footer><a href="{{.Releases}}">全部版本与更新记录</a></footer>
+</main>
+<script>
+(function () {
+  var p = ((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "").toLowerCase();
+  var id = p.indexOf("win") === 0 ? "p-win" : p.indexOf("linux") === 0 ? "p-linux" : "p-mac";
+  document.getElementById(id).checked = true;
+  document.querySelectorAll(".cmd button").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var text = button.previousElementSibling.textContent;
+      navigator.clipboard.writeText(text).then(function () {
+        button.textContent = "已复制";
+        setTimeout(function () { button.textContent = "复制"; }, 1500);
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

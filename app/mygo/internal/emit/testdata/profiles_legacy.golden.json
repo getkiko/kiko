@@ -1,0 +1,76 @@
+{
+ "JSON": "{\n  \"log\": {\n    \"level\": \"info\",\n    \"timestamp\": true\n  },\n  \"dns\": {\n    \"servers\": [\n      {\n        \"type\": \"local\",\n        \"tag\": \"dns-local\"\n      },\n      {\n        \"type\": \"https\",\n        \"tag\": \"dns-cn\",\n        \"server\": \"223.5.5.5\",\n        \"path\": \"/dns-query\",\n        \"tls\": {\n          \"server_name\": \"dns.alidns.com\"\n        }\n      }\n    ],\n    \"rules\": [\n      {\n        \"rule_set\": [\n          \"kiko-local-source\"\n        ],\n        \"server\": \"dns-cn\"\n      },\n      {\n        \"type\": \"logical\",\n        \"mode\": \"and\",\n        \"rules\": [\n          {\n            \"source_ip_cidr\": [\n              \"192.168.1.20/32\"\n            ]\n          },\n          {\n            \"domain_suffix\": [\n              \"a.example\"\n            ]\n          }\n        ],\n        \"server\": \"dns-local\"\n      },\n      {\n        \"source_ip_cidr\": [\n          \"192.168.1.20/32\"\n        ],\n        \"server\": \"dns-local\"\n      },\n      {\n        \"type\": \"logical\",\n        \"mode\": \"and\",\n        \"rules\": [\n          {\n            \"source_ip_cidr\": [\n              \"192.168.1.30\",\n              \"10.0.0.0/24\"\n            ]\n          },\n          {\n            \"domain\": [\n              \"tv.example\"\n            ]\n          }\n        ],\n        \"server\": \"dns-cn\"\n      },\n      {\n        \"source_ip_cidr\": [\n          \"192.168.1.30\",\n          \"10.0.0.0/24\"\n        ],\n        \"server\": \"dns-cn\"\n      }\n    ],\n    \"final\": \"dns-cn\",\n    \"strategy\": \"prefer_ipv4\",\n    \"cache_capacity\": 2048\n  },\n  \"inbounds\": [\n    {\n      \"type\": \"mixed\",\n      \"tag\": \"mixed-in\",\n      \"listen\": \"0.0.0.0\",\n      \"listen_port\": 7890\n    }\n  ],\n  \"outbounds\": [\n    {\n      \"type\": \"direct\",\n      \"tag\": \"直连\"\n    },\n    {\n      \"type\": \"trojan\",\n      \"tag\": \"代理\",\n      \"server\": \"example.com\",\n      \"server_port\": 443,\n      \"password\": \"p\u003c\u0026\u003e\",\n      \"tls\": {\n        \"enabled\": true\n      }\n    },\n    {\n      \"type\": \"socks\",\n      \"tag\": \"备用\",\n      \"server\": \"192.0.2.9\",\n      \"server_port\": 1080\n    }\n  ],\n  \"route\": {\n    \"rules\": [\n      {\n        \"action\": \"sniff\"\n      },\n      {\n        \"protocol\": \"dns\",\n        \"action\": \"hijack-dns\"\n      },\n      {\n        \"domain\": [\n          \"pre.example\"\n        ],\n        \"action\": \"reject\"\n      },\n      {\n        \"type\": \"logical\",\n        \"mode\": \"and\",\n        \"rules\": [\n          {\n            \"rule_set\": [\n              \"kiko-local-source\"\n            ]\n          },\n          {\n            \"domain_suffix\": [\n              \"local.example\"\n            ]\n          }\n        ],\n        \"outbound\": \"代理\"\n      },\n      {\n        \"rule_set\": [\n          \"kiko-local-source\"\n        ],\n        \"outbound\": \"直连\"\n      },\n      {\n        \"type\": \"logical\",\n        \"mode\": \"and\",\n        \"rules\": [\n          {\n            \"source_ip_cidr\": [\n              \"192.168.1.20/32\"\n            ]\n          },\n          {\n            \"domain_suffix\": [\n              \"a.example\"\n            ]\n          }\n        ],\n        \"outbound\": \"备用\"\n      },\n      {\n        \"type\": \"logical\",\n        \"mode\": \"and\",\n        \"rules\": [\n          {\n            \"source_ip_cidr\": [\n              \"192.168.1.20/32\"\n            ]\n          },\n          {\n            \"domain_suffix\": [\n              \"b.example\"\n            ]\n          }\n        ],\n        \"outbound\": \"代理\"\n      },\n      {\n        \"source_ip_cidr\": [\n          \"192.168.1.20/32\"\n        ],\n        \"outbound\": \"代理\"\n      },\n      {\n        \"type\": \"logical\",\n        \"mode\": \"and\",\n        \"rules\": [\n          {\n            \"source_ip_cidr\": [\n              \"192.168.1.30\",\n              \"10.0.0.0/24\"\n            ]\n          },\n          {\n            \"domain\": [\n              \"tv.example\"\n            ]\n          }\n        ],\n        \"outbound\": \"代理\"\n      },\n      {\n        \"source_ip_cidr\": [\n          \"192.168.1.30\",\n          \"10.0.0.0/24\"\n        ],\n        \"outbound\": \"备用\"\n      },\n      {\n        \"domain\": [\n          \"other.example\"\n        ],\n        \"action\": \"reject\"\n      }\n    ],\n    \"auto_detect_interface\": true,\n    \"find_process\": true,\n    \"rule_set\": [\n      {\n        \"type\": \"inline\",\n        \"tag\": \"kiko-local-source\",\n        \"rules\": [\n          {\n            \"source_ip_cidr\": [\n              \"127.0.0.0/8\",\n              \"::1/128\"\n            ]\n          }\n        ]\n      }\n    ],\n    \"final\": \"直连\",\n    \"default_domain_resolver\": {\n      \"server\": \"dns-cn\",\n      \"strategy\": \"ipv4_only\"\n    }\n  },\n  \"experimental\": {\n    \"clash_api\": {\n      \"external_controller\": \"127.0.0.1:9090\",\n      \"default_mode\": \"Rule\"\n    },\n    \"cache_file\": {\n      \"enabled\": true,\n      \"store_fakeip\": false\n    }\n  }\n}",
+ "RuleMap": [
+  {
+   "index": 2,
+   "id": "r-pre",
+   "owner": "pre",
+   "section": "route",
+   "ordinal": 1,
+   "name": "前置"
+  },
+  {
+   "index": 3,
+   "id": "r-local",
+   "owner": "local",
+   "section": "route",
+   "ordinal": 1,
+   "name": "本机"
+  },
+  {
+   "index": 4,
+   "owner": "local",
+   "section": "route",
+   "name": "默认出口",
+   "final": true
+  },
+  {
+   "index": 5,
+   "id": "r-p1",
+   "owner": "phone",
+   "section": "route",
+   "ordinal": 1,
+   "name": "手机一"
+  },
+  {
+   "index": 6,
+   "id": "r-p2",
+   "owner": "phone",
+   "section": "route",
+   "ordinal": 2,
+   "name": "手机二"
+  },
+  {
+   "index": 7,
+   "owner": "phone",
+   "section": "route",
+   "name": "默认出口",
+   "final": true
+  },
+  {
+   "index": 8,
+   "id": "r-tv",
+   "owner": "tv",
+   "section": "route",
+   "ordinal": 1,
+   "name": "电视"
+  },
+  {
+   "index": 9,
+   "owner": "tv",
+   "section": "route",
+   "name": "默认出口",
+   "final": true
+  },
+  {
+   "index": 10,
+   "id": "r-other",
+   "owner": "other",
+   "section": "route",
+   "ordinal": 1,
+   "name": "其他"
+  }
+ ],
+ "Warnings": [],
+ "Errors": []
+}

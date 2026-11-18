@@ -1,0 +1,16 @@
+name: Youtube (Music) Enhance
+desc: 适用于 Youtube & Youtube Music
+version: 
+argument: 屏蔽上传按钮 = "true"
+argument: 屏蔽选段按钮 = "true"
+argument: 屏蔽Shorts按钮 = "false"
+argument: 字幕翻译语言 = "off"
+argument: 启用调试模式 = "false"
+counts: hostnames=2 rewrites=0 scripts=3 rules=0 fetches=2 unsupported=0
+include: *.googlevideo.com youtubei.googleapis.com
+exclude: 
+script: youtube.response http-response tag=youtube.response pattern=^https:\/\/youtubei\.googleapis\.com\/(youtubei\/v1\/(browse|next|player|search|reel\/reel_watch_sequence|guide|account\/get_setting|get_watch|log_event|config))(\?(.*))?$ cron="" body=true bin=true max=33554432 timeout=0 disabled=false arg="{\"captionLang\":\"off\",\"blockUpload\":true,\"blockImmersive\":true,\"blockShorts\":false,\"debug\":false}" source="$done({});"
+script: youtube.request.init http-request tag=youtube.request.init pattern=^https?:\/\/[\w-]+\.googlevideo\.com\/initplayback.+&ack.* cron="" body=true bin=true max=33554432 timeout=0 disabled=false arg="{\"captionLang\":\"off\"}" source="$done({});"
+script: youtube.request.log_event http-request tag=youtube.request.log_event pattern=^https:\/\/youtubei\.googleapis\.com\/youtubei\/v1\/log_event cron="" body=true bin=true max=33554432 timeout=0 disabled=false arg="" source="$done({});"
+fetch: script https://raw.githubusercontent.com/Maasea/sgmodule/master/Script/Youtube/youtube.request.js
+fetch: script https://raw.githubusercontent.com/Maasea/sgmodule/master/Script/Youtube/youtube.response.js
