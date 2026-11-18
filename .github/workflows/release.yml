@@ -76,8 +76,10 @@ jobs:
       max-parallel: 1
       matrix:
         include:
-          - { name: macOS Apple silicon, os: macos-latest, goos: darwin, goarch: arm64 }
-          - { name: macOS Intel, os: macos-latest, goos: darwin, goarch: amd64 }
+          # Both macOS builds share one runner: hosted macOS runners are
+          # scarce, and a second job can sit in the queue until it is
+          # cancelled.
+          - { name: macOS, os: macos-latest, goos: darwin, goarch: "arm64 amd64" }
           - { name: Windows x64, os: ubuntu-latest, goos: windows, goarch: amd64 }
           - { name: Windows ARM64, os: ubuntu-latest, goos: windows, goarch: arm64 }
     steps:
@@ -108,7 +110,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
           MYGO_UPDATER_PUBLIC_KEY: ${{ vars.MYGO_UPDATER_PUBLIC_KEY }}
-        run: scripts/release/build-desktop.sh "${{ matrix.goos }}" "${{ matrix.goarch }}"
+        run: |
+          for arch in ${{ matrix.goarch }}; do
+            scripts/release/build-desktop.sh "${{ matrix.goos }}" "$arch"
+          done
 
   server:
     name: Linux server
