@@ -62,6 +62,10 @@ The Burrow dependency has already been switched to its published version. Done:
 
 Installed desktop apps offer the update on their next check. Updates are accepted only when signed with `MYGO_UPDATER_PRIVATE_KEY`.
 
+### When a job is cancelled before it starts
+
+Hosted macOS runners are sometimes short; a job that GitHub cannot place is cancelled with "The job was not acquired by Runner of type hosted even after multiple attempts". Nothing ran, and the release stays a draft. Open the run on the Actions page and choose **Re-run failed jobs** later; the jobs that already uploaded keep their files, and publishing and the documentation site follow once every job succeeds. To redeploy only the site, run the Pages workflow from the Actions page.
+
 ## Local dry run
 
 To check the packages without uploading anything, use a test key pair. In Actions `RELEASE_REPO` defaults to `GITHUB_REPOSITORY`; locally, set it explicitly:
