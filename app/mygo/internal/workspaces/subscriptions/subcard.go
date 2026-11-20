@@ -92,7 +92,6 @@ func (s *subsSection) subCard(c *ui.Context, doc *model.Doc, item model.TopLevel
 	if sub.UpdatedAt > 0 {
 		updated = "更新于 " + kit.Ago(time.UnixMilli(sub.UpdatedAt), now)
 	}
-	_, glow := kit.TypeLook(c, "subscription", "")
 	nodeIDs := make([]string, len(item.Nodes))
 	for i, o := range item.Nodes {
 		nodeIDs[i] = o.ID
@@ -116,7 +115,6 @@ func (s *subsSection) subCard(c *ui.Context, doc *model.Doc, item model.TopLevel
 	}})
 	more := kit.HeroCard(c, id, kit.HeroCardOptions{
 		Label: "编辑 " + title,
-		Glow:  glow,
 		Muted: !sub.Enabled,
 		Header: func() {
 			kit.HeroDot(c, sub.Enabled)

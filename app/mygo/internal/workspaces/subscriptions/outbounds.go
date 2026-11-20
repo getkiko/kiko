@@ -311,10 +311,8 @@ func (s *outboundsSection) card(c *ui.Context, doc *model.Doc, regions *model.Re
 // confirms, and list the more menu in their context menu too.
 func (s *outboundsSection) cardOptions(c *ui.Context, o *model.Outbound, title string) kit.HeroCardOptions {
 	id := o.ID
-	_, glow := kit.TypeLook(c, "outbound", o.Type)
 	return kit.HeroCardOptions{
 		Label:           "编辑 " + title,
-		Glow:            glow,
 		Muted:           !o.Enabled,
 		Enabled:         o.Enabled,
 		OnEnabledChange: func(enabled bool) { s.setEnabled(id, enabled) },

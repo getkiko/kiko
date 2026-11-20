@@ -134,11 +134,9 @@ func (s *inboundsSection) card(c *ui.Context, doc *model.Doc, in *model.Inbound)
 	if title == "" {
 		title = typeLabel(in.Type)
 	}
-	_, glow := kit.TypeLook(c, "inbound", in.Type)
 	main, note, mono := inboundFacts(in)
 	more := kit.HeroCard(c, id, kit.HeroCardOptions{
 		Label: "编辑 " + title,
-		Glow:  glow,
 		Muted: !in.Enabled,
 		Header: func() {
 			heroHeader(c, func() { kit.HeroDot(c, in.Enabled) }, title, invalid, strings.ToUpper(in.Type))

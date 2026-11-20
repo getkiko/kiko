@@ -388,11 +388,9 @@ type heroItem struct {
 // its menu switches, restores the defaults or deletes after a
 // confirmation at the more button.
 func (s *Section) heroCard(c *ui.Context, h heroItem) {
-	_, glow := kit.TypeLook(c, h.kind, h.typ)
 	kind, id := h.kind, h.id
 	more := kit.HeroCard(c, id, kit.HeroCardOptions{
 		Label: "编辑 " + h.title,
-		Glow:  glow,
 		Muted: !h.enabled,
 		Header: func() {
 			kit.HeroDot(c, h.enabled)
