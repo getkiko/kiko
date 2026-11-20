@@ -279,8 +279,9 @@ func (t *trayController) buildLocked() *mygo.Menu {
 	return mygo.NewMenu(items)
 }
 
-// groupItemLocked is a group's submenu: "Test", then its members, the
-// chosen one checked, each with its latency. The members of a group the
+// groupItemLocked is a group's submenu: "Test", which keeps the menu open
+// while the latencies come in, then its members, the chosen one checked,
+// each with its latency. The members of a group the
 // core chooses for itself (fastest, fallback) show, but cannot be chosen.
 func (t *trayController) groupItemLocked(g api.Selector) *mygo.MenuItem {
 	name := g.Name
@@ -292,8 +293,10 @@ func (t *trayController) groupItemLocked(g api.Selector) *mygo.MenuItem {
 	members := map[string]*mygo.MenuItem{}
 	choose := switchable(g)
 	for _, member := range g.All {
-		item := &mygo.MenuItem{Label: member, Type: mygo.MenuItemRadio, KeepOpen: true, Disabled: !choose,
-			BadgeShape: mygo.BadgeShapePill}
+		// The members are the system's own items: MyGo draws KeepOpen
+		// items itself, and their highlight fades out, leaving a trail
+		// as the pointer moves down a list. Choosing one closes the menu.
+		item := &mygo.MenuItem{Label: member, Type: mygo.MenuItemRadio, Disabled: !choose}
 		if choose {
 			item.Click = func(*mygo.MenuItem, *mygo.Window) { go t.choose(name, member) }
 		}
