@@ -199,8 +199,10 @@ func smoothstep(lo, hi, x float32) float32 {
 }
 
 // drawFlowDots paints a line's dots, travelled along it at speed and
-// level: a fading tail behind a round head, in tone, solid over bg.
-func drawFlowDots(p *ui.Painter, path topoPath, travelled, speed, level float64, unit float32, tone, bg ui.Color) {
+// level: a fading tail behind a round head, in tone. The tail lies on the
+// line, solid over its color under; the head, wider than the line, is
+// drawn translucent, so a fading dot fades into whatever is behind it.
+func drawFlowDots(p *ui.Painter, path topoPath, travelled, speed, level float64, unit float32, tone, under ui.Color) {
 	length := path.length()
 	for _, d := range flowDots(length, travelled, speed, level, unit) {
 		head := d.head
@@ -214,10 +216,10 @@ func drawFlowDots(p *ui.Painter, path topoPath, travelled, speed, level float64,
 				continue
 			}
 			level := d.alpha * (0.18 + 0.6*float32(s+1)/steps)
-			p.StrokePolyline(path.section(a, b), 2*unit, tone.Alpha(level).Over(bg))
+			p.StrokePolyline(path.section(a, b), 1.75*unit, tone.Alpha(level).Over(under))
 		}
 		at := path.at(head)
 		r := 2.75 * unit
-		p.Fill(ui.Rect{X: at[0] - r, Y: at[1] - r, W: 2 * r, H: 2 * r}, tone.Alpha(d.alpha).Over(bg), r)
+		p.Fill(ui.Rect{X: at[0] - r, Y: at[1] - r, W: 2 * r, H: 2 * r}, tone.Alpha(d.alpha), r)
 	}
 }

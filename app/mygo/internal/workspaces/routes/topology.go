@@ -179,18 +179,21 @@ func (w *Workspace) drawTopology(p *ui.Painter, r ui.Rect, k *kit.Tokens, g *top
 	// lines share its dots, the exit's continuing the entry's, and both
 	// take its tint, so the way through it reads as one.
 	edge := func(pts [][2]float32, lit bool, decided bool, enabled bool, flow float32, tone ui.Color, line *topoFlowLine, along float32) float32 {
+		var base ui.Color
+		width := thin
 		switch {
 		case paths == nil && enabled:
-			p.StrokePolyline(pts, 1.25*thin, solid(k.Hairline))
+			base, width = solid(k.Hairline), 1.25*thin
 		case paths == nil:
-			p.StrokePolyline(pts, thin, solid(k.HairlineSoft))
+			base = solid(k.HairlineSoft)
 		case lit && decided:
-			p.StrokePolyline(pts, 2.25*thin, solid(k.Accent))
+			base, width = solid(k.Accent), 2.25*thin
 		case lit:
-			p.StrokePolyline(pts, 2*thin, solid(k.Accent.Alpha(0.6)))
+			base, width = solid(k.Accent.Alpha(0.6)), 2*thin
 		default:
-			p.StrokePolyline(pts, thin, solid(k.HairlineSoft.Alpha(0.6)))
+			base = solid(k.HairlineSoft.Alpha(0.6))
 		}
+		p.StrokePolyline(pts, width, base)
 		path := measureTopoPath(pts)
 		if !enabled {
 			return path.length()
@@ -207,8 +210,12 @@ func (w *Workspace) drawTopology(p *ui.Painter, r ui.Rect, k *kit.Tokens, g *top
 			return path.length()
 		}
 		flowing = true
-		p.StrokePolyline(pts, 1.75*thin, solid(tone.Alpha(line.tint())))
-		drawFlowDots(p, path, line.travelled-float64(along/thin), line.speed(), line.level, thin, tone, k.Canvas)
+		// The tint mixes with the line under it, not the canvas: a faint
+		// tint over the canvas would be paler than the line, a flash of
+		// white as the traffic ends.
+		tinted := tone.Alpha(line.tint()).Over(base)
+		p.StrokePolyline(pts, max(width, 1.75*thin), tinted)
+		drawFlowDots(p, path, line.travelled-float64(along/thin), line.speed(), line.level, thin, tone, tinted)
 		return path.length()
 	}
 	ex, ey := l.entry.right()
