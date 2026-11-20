@@ -198,6 +198,12 @@ func (m *connMonitor) toolbar(c *ui.Context, d *connDerived, hasFilters bool) {
 	})
 }
 
+// faded reports a line drawn faded: an ended connection among all of
+// them. The Closed tab lists only ended ones, and shows them as they are.
+func (m *connMonitor) faded(v visibleNode) bool {
+	return m.tab == tabAll && v.Node != nil && !v.Node.group() && v.Node.Row.Closed()
+}
+
 // closeDisabled is whether "Close all connections" has nothing to close or cannot run.
 func (m *connMonitor) closeDisabled(d *connDerived) bool {
 	return m.tab == tabClosed || m.tab == tabRejected || d.totals.Active == 0 || !m.loaded || m.streamErr != "" || m.paused || m.busy
@@ -310,6 +316,7 @@ func (m *connMonitor) list(c *ui.Context, d *connDerived, now time.Time) {
 			}
 			return visible[row].MoreKey
 		},
+		Faded: func(row int) bool { return m.faded(visible[row]) },
 		Menu:  m.freeze.Menu(func(menu *ui.Menu, row int) { m.rowMenu(c, d, menu, visible[row]) }),
 		Empty: func() { m.empty(c) },
 	}, func(row, col int) { m.cell(c, d, names, visible[row], m.columns[col], now) })

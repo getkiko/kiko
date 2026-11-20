@@ -65,6 +65,10 @@ type TableOptions struct {
 	NoSelection bool
 	// Dimmed greys out a row, as a disabled rule.
 	Dimmed func(row int) bool
+	// Faded fades a row's cells as one, icons and badges included, as a
+	// connection that has ended; the row's fills stay. A chosen row fades
+	// less, to stay readable.
+	Faded func(row int) bool
 	// Menu builds a row's context menu.
 	Menu func(m *ui.Menu, row int)
 	// HasMenu tells that row has a context menu, for a Menu some rows
@@ -222,6 +226,13 @@ func Table(c *ui.Context, s *TableState, columns []Column, n int, o TableOptions
 				e.PopoverMenu(func(m *ui.Menu) { o.Menu(m, row) })
 			}
 			onAccent := r.Selected() && r.ListFocused() && !o.Flat
+			opacity := float32(1)
+			if o.Faded != nil && o.Faded(row) {
+				opacity = FadedRowOpacity
+				if r.Selected() {
+					opacity = FadedChosenRowOpacity
+				}
+			}
 			e.Children(func() {
 				previous := rowOnAccent
 				rowOnAccent = onAccent
@@ -236,6 +247,9 @@ func Table(c *ui.Context, s *TableState, columns []Column, n int, o TableOptions
 							grow = 1
 						}
 						box.Grow(grow).Basis(0).MinWidth(max(col.MinWidth, 80))
+					}
+					if opacity < 1 {
+						box.Opacity(opacity)
 					}
 					box.Justify(col.Align).Children(func() { cell(row, shown[i]) })
 				}
@@ -328,6 +342,13 @@ func Muted(c *ui.Context) ui.Color {
 	}
 	return T(c).Label3
 }
+
+// The opacities of a faded row's cells (TableOptions.Faded), and of a
+// chosen one.
+const (
+	FadedRowOpacity       = 0.42
+	FadedChosenRowOpacity = 0.7
+)
 
 // Cell is a table cell's text: a primary line and, in two-line tables, a
 // secondary one below it. Long text ends with an ellipsis and shows whole
