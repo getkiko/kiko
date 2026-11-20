@@ -122,20 +122,9 @@ func (s *subsSection) subCard(c *ui.Context, doc *model.Doc, item model.TopLevel
 			if invalid {
 				invalidBadge(c)
 			}
-			ui.Spacer(c)
-			count := fmt.Sprintf("%d 节点 ›", len(item.Nodes))
-			if hits > 0 {
-				count = fmt.Sprintf("命中 %d ›", hits)
-			}
-			nodes := heroLink(c, count, "查看 "+title+" 的节点", false)
-			if s.nodes.sheet.Refocus && s.nodes.id == id {
-				s.nodes.sheet.Refocus = false
-				nodes.Focus()
-			}
-			if nodes.Clicked() {
-				s.nodes.show(id, s.w.query)
-			}
 		},
+		// The more button needs no room kept for it: nothing ends the header.
+		HeaderEnd: func() {},
 		Main: func() {
 			if usage.used == "" {
 				kit.HeroValue(c, "—")
@@ -173,6 +162,18 @@ func (s *subsSection) subCard(c *ui.Context, doc *model.Doc, item model.TopLevel
 				ui.Text(c, updated).FontFeatures("tnum").SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 			}
 			ui.Spacer(c)
+			count := fmt.Sprintf("%d 节点 ›", len(item.Nodes))
+			if hits > 0 {
+				count = fmt.Sprintf("命中 %d ›", hits)
+			}
+			nodes := heroLink(c, count, "查看 "+title+" 的节点", false)
+			if s.nodes.sheet.Refocus && s.nodes.id == id {
+				s.nodes.sheet.Refocus = false
+				nodes.Focus()
+			}
+			if nodes.Clicked() {
+				s.nodes.show(id, s.w.query)
+			}
 			s.refreshButton(c, sub, 22, 13)
 		},
 		Enabled: sub.Enabled,

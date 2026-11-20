@@ -49,6 +49,15 @@ type HeroCardOptions struct {
 	Muted bool
 	// Span is how many columns of its grid the card spans, 1 when 0.
 	Span int
+	// MinHeight is the card's least height, HeroMinHeight when 0.
+	MinHeight float32
+	// StrongHeader makes the header the card's title: 16 DIP semibold in
+	// Label (Label3 when Muted), its tags keeping their own size.
+	StrongHeader bool
+	// HeaderEnd builds the end of the header, right aligned, as a type
+	// tag. The more button takes its place while it shows, rather than a
+	// space kept for it at the end of every header.
+	HeaderEnd func()
 	// Header builds the first line, a row of 12 DIP Label2 text (HeroDot,
 	// HeroInitial or a flag, HeroName, a Spacer, HeroTag). Main builds the
 	// main value's row in Label (HeroValue, HeroMono, HeroLatency). Footer
@@ -94,7 +103,11 @@ type HeroCardOptions struct {
 // confirmations started from the menu; the zero Element without a menu.
 func HeroCard(c *ui.Context, key any, o HeroCardOptions) ui.Element {
 	k := T(c)
-	card := CardSurface(c, ui.Column(c.Key(key)), HeroRadius).MinWidth(0).MinHeight(HeroMinHeight).
+	minHeight := o.MinHeight
+	if minHeight <= 0 {
+		minHeight = HeroMinHeight
+	}
+	card := CardSurface(c, ui.Column(c.Key(key)), HeroRadius).MinWidth(0).MinHeight(minHeight).
 		AlignItems(ui.Stretch).Clip().Transition(HoverMotion)
 	if o.Span > 1 {
 		card.ColumnSpan(o.Span)
@@ -110,6 +123,9 @@ func HeroCard(c *ui.Context, key any, o HeroCardOptions) ui.Element {
 		}
 	}
 	menuOpen := ui.Local(card, "menu", func() bool { return false })
+	// moreFocused is whether the more button had the keyboard focus last
+	// frame, which shows it, read before the button builds.
+	moreFocused := ui.Local(card, "more-focused", func() bool { return false })
 	head, value := k.Label2, k.Label
 	if o.Muted {
 		head, value = k.Label3, k.Label3
@@ -148,10 +164,24 @@ func HeroCard(c *ui.Context, key any, o HeroCardOptions) ui.Element {
 			if o.Header != nil {
 				header := ui.Row(c).Gap(8).MinHeight(22).MinWidth(0).AlignItems(ui.Center).FontSize(FontTable).
 					TextColor(head)
-				if hasMore {
+				if o.StrongHeader {
+					header.FontSize(16).FontWeight(600).TextColor(value).MinHeight(24)
+				}
+				if hasMore && o.HeaderEnd == nil {
 					header.PaddingEnd(heroMoreInset)
 				}
-				header.Children(o.Header)
+				header.Children(func() {
+					o.Header()
+					if o.HeaderEnd == nil {
+						return
+					}
+					ui.Spacer(c)
+					end := ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(1).MinWidth(0).Transition(HoverMotion)
+					if hasMore && (hovered || *menuOpen || o.KeepMore || o.FocusMore || *moreFocused) {
+						end.Opacity(0)
+					}
+					end.Children(o.HeaderEnd)
+				})
 			}
 			if o.Main != nil {
 				ui.Row(c).Gap(6).MinWidth(0).AlignItems(ui.Center).TextColor(value).Children(o.Main)
@@ -182,6 +212,7 @@ func HeroCard(c *ui.Context, key any, o HeroCardOptions) ui.Element {
 		}
 		// It comes in growing from a little smaller, as it fades in, and
 		// leaves faster, in frames that only paint. Fade 1 is gone.
+		*moreFocused = more.FocusVisible()
 		if hovered || *menuOpen || o.KeepMore || o.FocusMore || more.FocusVisible() {
 			holder.AnimatePose(ui.Pose{Scale: 1}, heroMoreIn)
 		} else {
@@ -222,9 +253,12 @@ func HeroColumns(c *ui.Context) int {
 // AddCard is the last cell of a hero card grid: a dashed outline as
 // large as a card reading "＋ label" ("＋ Add inbound"), which a section's
 // add action opens. label names the button. Read Clicked on it.
-func AddCard(c *ui.Context, label string) ui.Element {
+func AddCard(c *ui.Context, label string) ui.Element { return AddCardHeight(c, label, HeroMinHeight) }
+
+// AddCardHeight is AddCard as high as cards of the least height h.
+func AddCardHeight(c *ui.Context, label string, h float32) ui.Element {
 	k := T(c)
-	b := ui.ButtonBase(c).MinWidth(0).MinHeight(HeroMinHeight).Radius(HeroRadius).Border(1.5, k.Label4).
+	b := ui.ButtonBase(c).MinWidth(0).MinHeight(h).Radius(HeroRadius).Border(1.5, k.Label4).
 		BorderStyle(ui.BorderDashed).Center().Label(label).Transition(HoverMotion)
 	switch {
 	case b.Pressed():

@@ -420,7 +420,7 @@ func (s *outboundsSection) groupGrid(c *ui.Context, groups []groupView, searchin
 		keys[i] = groups[i].id
 	}
 	reorderGrid(c, "outbounds-groups", keys, s.w.reorderTopLevel, func(i int) { s.groupCard(c, &groups[i], searching) }, func() {
-		if kit.AddCard(c.Key("add-group"), "添加策略组").Clicked() {
+		if kit.AddCardHeight(c.Key("add-group"), "添加策略组", cardHeight).Clicked() {
 			s.editor.openAdd(model.ModeManual)
 		}
 	})
@@ -454,82 +454,31 @@ func (s *outboundsSection) groupCard(c *ui.Context, g *groupView, searching bool
 	measure := func() { s.w.measureBatch(batch, servers) }
 	opts := s.cardOptions(c, g.o, title)
 	opts.Focus = refocus
-	summary := []string{g.kind}
-	if strategy := g.strategyLabel(); strategy != "" {
-		summary = append(summary, strategy)
+	summary := fmt.Sprintf("%s · %d", g.kind, len(g.all))
+	if searching && g.hits > 0 {
+		summary = fmt.Sprintf("命中 %d", g.hits)
 	}
-	if g.filter != "" {
-		summary = append(summary, g.filter)
+	muted := !g.o.Enabled
+	opts.Header = func() { cardTitle(c, func() { kit.HeroInitial(c, nodeview.GroupInitial(title)) }, title, g.invalid) }
+	opts.HeaderEnd = func() {
+		ui.Text(c, summary).FontSize(kit.FontCaption).FontWeight(400).TextColor(k.Label3).
+			FontFeatures("tnum").SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 	}
-	summary = append(summary, fmt.Sprint(len(g.all)))
-	opts.Header = func() {
-		kit.HeroInitial(c, nodeview.GroupInitial(title))
-		kit.HeroName(c, title)
-		if g.invalid {
-			invalidBadge(c)
-		}
-		ui.Spacer(c)
-		ui.Text(c, strings.Join(summary, " · ")).FontFeatures("tnum").SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
-	}
+	// The detail is what the group goes through now, the member in use,
+	// which a click on opens the members to switch, and its latency, which
+	// a click tests the group again; a balancer, how many members are up.
 	opts.Main = func() {
 		if g.o.Type == model.ModeLoadBalance && len(g.all) > 0 {
 			if n, total, ok := s.available(g); ok {
-				kit.HeroValue(c, fmt.Sprintf("%d / %d", n, total)).FontFeatures("tnum")
+				cardDetail(c, muted, fmt.Sprintf("可用 %d / %d", n, total))
 			} else {
-				kit.HeroValue(c, fmt.Sprintf("%d 个成员", len(g.all))).FontSize(18).FontFeatures("tnum")
+				cardDetail(c, muted, fmt.Sprintf("%d 个成员", len(g.all)))
 			}
-			return
-		}
-		if current == nil {
-			text := "未测速"
-			switch {
-			case len(g.all) == 0:
-				text = "没有成员"
-			case g.o.Type == model.ModeManual || g.o.Type == model.ModeFallback:
-				text = "未选择"
-			}
-			kit.HeroValue(c, text).FontSize(18).TextColor(k.Label3)
-			return
-		}
-		if current.flag != "" {
-			ui.Text(c, current.flag).FontSize(18).SingleLine().Shrink(0)
-		}
-		kit.HeroValue(c, current.name).FontSize(18)
-		ui.Spacer(c)
-		if s.w.store.Testing(server) {
-			nodeview.TestingMark(c)
-		} else if text, fg, bg, ok := nodeview.LatencyTag(k, s.w.store.Latency[server]); ok {
-			kit.HeroLatency(c, text, fg, bg)
-		}
-	}
-	if current != nil {
-		if history := s.w.store.LatencyHistory(server); len(history) >= 2 {
-			opts.Spark = history
-			opts.SparkColor, _ = nodeview.LatencyTone(k, history[len(history)-1])
-		}
-	}
-	opts.Footer = func() {
-		switch {
-		case searching && g.hits > 0:
-			ui.Text(c, fmt.Sprintf("命中 %d", g.hits)).FontFeatures("tnum").SingleLine()
-		case g.flags == "":
-			ui.Text(c, fmt.Sprintf("%d 个成员", len(g.all))).FontFeatures("tnum").SingleLine()
-		default:
-			ui.Text(c, g.flags).FontSize(12).LetterSpacing(1).SingleLine().Shrink(0)
-			if g.more > 0 {
-				ui.Text(c, fmt.Sprintf("+%d", g.more)).FontFeatures("tnum").SingleLine().Shrink(0)
-			}
+		} else {
+			s.groupCurrent(c, g, current, muted)
 		}
 		ui.Spacer(c)
-		if g.o.Type != model.ModeManual {
-			if heroLink(c, "测速", "测速 "+title, running).Clicked() {
-				measure()
-			}
-			return
-		}
-		if heroLink(c, "切换", "切换 "+title, false).Clicked() {
-			s.sheet.show(id)
-		}
+		s.groupLatency(c, title, server, running, len(servers) > 0, measure)
 	}
 	opts.Menu = append(opts.Menu, kit.EntityMenuItem{Label: "成员", Icon: kit.SymList, Run: func(ui.Element) { s.sheet.show(id) }})
 	opts.Menu = append(opts.Menu, kit.EntityMenuItem{Label: "测速", Icon: kit.SymGauge, Disabled: running || len(servers) == 0,
@@ -567,4 +516,72 @@ func heroLink(c *ui.Context, text, label string, busy bool) ui.Element {
 		}
 	})
 	return b
+}
+
+// groupCurrent is the member group g uses now, "→ 🇭🇰 Hong Kong 01", or
+// why there is none, a button opening the members to switch.
+func (s *outboundsSection) groupCurrent(c *ui.Context, g *groupView, current *groupTile, muted bool) {
+	k := kit.T(c)
+	id := g.id
+	b := ui.ButtonBase(c).Height(22).PaddingX(4).MarginStart(-4).Gap(5).Radius(6).AlignItems(ui.Center).
+		Shrink(1).MinWidth(0).Label("切换 " + g.title).Transition(kit.HoverMotion)
+	if b.Hovered() {
+		b.Background(k.Fill)
+	}
+	if b.Pressed() {
+		b.Opacity(0.6)
+	}
+	b.Children(func() {
+		if current == nil {
+			text := "未测速"
+			switch {
+			case len(g.all) == 0:
+				text = "没有成员"
+			case g.o.Type == model.ModeManual || g.o.Type == model.ModeFallback:
+				text = "未选择"
+			}
+			cardDetail(c, true, text)
+			return
+		}
+		ui.Text(c, "→").FontSize(kit.FontTable).TextColor(k.Label3).SingleLine().Shrink(0)
+		if current.flag != "" {
+			ui.Text(c, current.flag).FontSize(kit.FontTable).SingleLine().Shrink(0)
+		}
+		cardDetail(c, muted, current.name)
+	})
+	if b.Clicked() {
+		s.sheet.show(id)
+	}
+}
+
+// groupLatency is the latency of server, the group's member in use, a
+// button testing the group again; "Test" without one, a spinner while a
+// test runs.
+func (s *outboundsSection) groupLatency(c *ui.Context, title, server string, running, testable bool, measure func()) {
+	k := kit.T(c)
+	if running || s.w.store.Testing(server) {
+		ui.Row(c).Height(19).AlignItems(ui.Center).Shrink(0).Children(func() {
+			nodeview.TestingMark(c)
+			kit.BusyCover(c, "测速 "+title)
+		})
+		return
+	}
+	result := s.w.store.Latency[server]
+	text, fg, bg, ok := nodeview.LatencyTag(k, result)
+	if !ok {
+		if testable && heroLink(c, "测速", "测速 "+title, false).Clicked() {
+			measure()
+		}
+		return
+	}
+	b := ui.ButtonBase(c).Height(19).Radius(6).AlignItems(ui.Center).Shrink(0).Label("测速 " + title).
+		Transition(kit.HoverMotion)
+	if b.Pressed() {
+		b.Opacity(0.6)
+	}
+	b.Children(func() { kit.HeroLatency(c, text, fg, bg) })
+	kit.Hint(c, b, nodeview.LatencyHint(result))
+	if b.Clicked() && testable {
+		measure()
+	}
 }

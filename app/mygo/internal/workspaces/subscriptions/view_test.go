@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/getkiko/kiko/app/mygo/internal/api"
@@ -142,7 +143,8 @@ func TestSectionsInOrder(t *testing.T) {
 	}
 	f.save("subscriptions-light.png")
 	f.tt.SetDark(true)
-	f.tt.Frame()
+	// The theme eases in: the clock moves on until it has settled.
+	f.tt.Advance(time.Second)
 	f.save("subscriptions-dark.png")
 }
 

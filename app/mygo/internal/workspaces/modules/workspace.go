@@ -342,9 +342,8 @@ func (w *Workspace) card(c *ui.Context, m *model.HTTPModule) {
 		Header: func() {
 			kit.HeroDot(c, m.Enabled)
 			kit.HeroName(c, title)
-			ui.Spacer(c)
-			w.statusBadge(c, m)
 		},
+		HeaderEnd: func() { w.statusBadge(c, m) },
 		Main: func() {
 			ui.Row(c).Gap(12).MinWidth(0).AlignItems(ui.Baseline).Children(func() {
 				stat(counts.Hostnames, "主机名")

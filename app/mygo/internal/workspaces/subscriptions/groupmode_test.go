@@ -37,12 +37,11 @@ func liveModes() []api.Selector {
 	}
 }
 
-// TestGroupModeCards: each mode's card tells its mode, a load balance
-// group its strategy; offline a fallback group uses its first member and
+// TestGroupModeCards: each mode's card tells its mode; offline a fallback group uses its first member and
 // a load balance group counts its members.
 func TestGroupModeCards(t *testing.T) {
 	f := newFixture(t, modesDoc())
-	for _, text := range []string{"故障转移 · 2", "负载均衡 · 轮询 · 2", "智能 · 2", "2 个成员", "测速 故障转移", "测速 负载均衡", "测速 智能选择"} {
+	for _, text := range []string{"故障转移 · 2", "负载均衡 · 2", "智能 · 2", "2 个成员", "测速 故障转移", "测速 负载均衡", "测速 智能选择"} {
 		if !f.tt.HasText(text) {
 			t.Errorf("missing %q in %q", text, f.tt.Texts())
 		}

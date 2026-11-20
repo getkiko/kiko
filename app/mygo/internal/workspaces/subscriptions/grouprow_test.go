@@ -77,13 +77,13 @@ func runCore(f *fixture, groups ...api.Selector) {
 	f.tt.Frame()
 }
 
-// TestGroupCards: the groups show as cards under "Policy groups" with their kind,
-// filter and member count, the filter's member marked as added, a
+// TestGroupCards: the groups show as cards under "Policy groups" titled by
+// their names, with their kind and member count, the filter's member marked as added, a
 // Selector's default in use and a URLTest's member untested, then the
 // manual outbounds.
 func TestGroupCards(t *testing.T) {
 	f := newFixture(t, groupsDoc())
-	for _, text := range []string{"策略组", "手动 · 2", "最快 · 自定义匹配 · 2", "手动出站", "未测速", "切换", "测速", "添加策略组"} {
+	for _, text := range []string{"策略组", "手动 · 2", "最快 · 2", "手动出站", "未测速", "→", "测速", "添加策略组"} {
 		if !f.tt.HasText(text) {
 			t.Errorf("missing %q in %q", text, f.tt.Texts())
 		}

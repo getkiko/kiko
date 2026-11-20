@@ -136,11 +136,10 @@ func (s *inboundsSection) card(c *ui.Context, doc *model.Doc, in *model.Inbound)
 	}
 	main, note, mono := inboundFacts(in)
 	more := kit.HeroCard(c, id, kit.HeroCardOptions{
-		Label: "编辑 " + title,
-		Muted: !in.Enabled,
-		Header: func() {
-			heroHeader(c, func() { kit.HeroDot(c, in.Enabled) }, title, invalid, strings.ToUpper(in.Type))
-		},
+		Label:     "编辑 " + title,
+		Muted:     !in.Enabled,
+		Header:    func() { cardTitle(c, func() { kit.HeroDot(c, in.Enabled) }, title, invalid) },
+		HeaderEnd: func() { kit.HeroTag(c, strings.ToUpper(in.Type)) },
 		Main: func() {
 			if mono {
 				kit.HeroMono(c, main)

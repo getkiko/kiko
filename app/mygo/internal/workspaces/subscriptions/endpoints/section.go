@@ -401,9 +401,8 @@ func (s *Section) heroCard(c *ui.Context, h heroItem) {
 			case h.badge != "":
 				kit.Badge(c, h.badge, h.badgeTone)
 			}
-			ui.Spacer(c)
-			kit.HeroTag(c, strings.ToUpper(h.typ))
 		},
+		HeaderEnd: func() { kit.HeroTag(c, strings.ToUpper(h.typ)) },
 		Main: func() {
 			switch {
 			case h.main == "":

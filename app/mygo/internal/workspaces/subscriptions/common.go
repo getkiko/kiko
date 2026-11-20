@@ -82,16 +82,35 @@ func nodeEndpoint(o *model.Outbound) string {
 // invalidBadge is the "Needs fix" chip of a card needing a fix.
 func invalidBadge(c *ui.Context) { kit.Badge(c, "需修正", kit.DangerTone) }
 
-// heroHeader is a hero card's header after lead (its dot, initial or
-// flag): the name, "Needs fix" when invalid, and the type tag at the end.
-func heroHeader(c *ui.Context, lead func(), name string, invalid bool, tag string) {
+// cardHeight is the least height of the outbound and group cards: a
+// title and a line of detail.
+const cardHeight = 72
+
+// cardDetail is a line of detail under a card's title, in Label2, Label3
+// while the card is muted.
+func cardDetail(c *ui.Context, muted bool, text string) ui.Element {
+	k := kit.T(c)
+	color := k.Label2
+	if muted {
+		color = k.Label3
+	}
+	return ui.Text(c, text).FontSize(kit.FontTable).TextColor(color).FontFeatures("tnum").SingleLine().
+		Ellipsis("…").Shrink(1).MinWidth(0)
+}
+
+// cardMono is cardDetail for an address.
+func cardMono(c *ui.Context, muted bool, text string) ui.Element {
+	return cardDetail(c, muted, text).Font(kit.MonoFont)
+}
+
+// cardTitle is the title of an outbound or group card: lead (its flag or
+// initial), the name and "Needs fix" when invalid.
+func cardTitle(c *ui.Context, lead func(), name string, invalid bool) {
 	lead()
 	kit.HeroName(c, name)
 	if invalid {
 		invalidBadge(c)
 	}
-	ui.Spacer(c)
-	kit.HeroTag(c, tag)
 }
 
 // subHeading is the small heading of a group of cards inside a section,

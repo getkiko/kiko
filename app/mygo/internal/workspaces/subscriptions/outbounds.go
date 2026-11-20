@@ -2,6 +2,7 @@ package subscriptions
 
 import (
 	"fmt"
+	"net"
 	"slices"
 	"strings"
 
@@ -117,7 +118,7 @@ func (s *outboundsSection) grid(c *ui.Context, doc *model.Doc, items []model.Top
 	}
 	regions := s.w.infoOf(doc).matcher
 	reorderGrid(c, "outbounds-other", keys, s.w.reorderTopLevel, func(i int) { s.card(c, doc, regions, items[i].Outbound) }, func() {
-		s.add.Card(addManual, kit.AddCard(c.Key("add-outbound"), "添加出站"))
+		s.add.Card(addManual, kit.AddCardHeight(c.Key("add-outbound"), "添加出站", cardHeight))
 	})
 }
 
@@ -232,10 +233,10 @@ func (s *outboundsSection) copyLink(c *ui.Context, o *model.Outbound) {
 	s.w.env.Toast("分享链接已复制")
 }
 
-// card is a manual outbound's hero card, opening its editor: a proxy's
-// flag (or initial), name and protocol over its server, its port,
-// region and last latency, which a click tests again; direct and block
-// what they do and how many routes use them. Its menu, the more button's
+// card is a manual outbound's card, opening its editor, titled by its
+// name with its type at the end: a proxy's flag (or initial) and name
+// over its address, region and last latency, which a click tests again;
+// direct and block over how many routes use them. Its menu, the more button's
 // and the context menu, tests a proxy, copies its share link and deletes
 // it after a confirmation at the more button (heroCard).
 func (s *outboundsSection) card(c *ui.Context, doc *model.Doc, regions *model.RegionMatcher, o *model.Outbound) {
@@ -247,19 +248,14 @@ func (s *outboundsSection) card(c *ui.Context, doc *model.Doc, regions *model.Re
 	}
 	opts := s.cardOptions(c, o, title)
 	if o.Type == "direct" || o.Type == "block" {
-		initial, what := "直", "本机网络"
+		initial := "直"
 		if o.Type == "block" {
-			initial, what = "拒", "丢弃连接"
+			initial = "拒"
 		}
 		uses := model.OutboundUseCount(doc, id)
-		opts.Header = func() {
-			heroHeader(c, func() { kit.HeroInitial(c, initial) }, title, invalid, strings.ToUpper(o.Type))
-		}
-		opts.Main = func() { kit.HeroValue(c, what).FontSize(18) }
-		opts.Footer = func() {
-			ui.Text(c, fmt.Sprintf("被 %d 处使用", uses)).FontFeatures("tnum").SingleLine().Ellipsis("…").
-				Shrink(1).MinWidth(0)
-		}
+		opts.Header = func() { cardTitle(c, func() { kit.HeroInitial(c, initial) }, title, invalid) }
+		opts.HeaderEnd = func() { kit.HeroTag(c, strings.ToUpper(o.Type)) }
+		opts.Main = func() { cardDetail(c, !o.Enabled, fmt.Sprintf("被 %d 处使用", uses)) }
 	} else {
 		region, found := regions.RegionOf(o.Tag)
 		server, port := jsv.StringOr(o.Fields["server"], ""), jsv.StringOr(o.Fields["server_port"], "")
@@ -267,15 +263,15 @@ func (s *outboundsSection) card(c *ui.Context, doc *model.Doc, regions *model.Re
 			server, port = jsv.StringOr(o.Fields["signal_address"], ""), ""
 		}
 		testable := server != "" && o.Type != "burrow"
-		if server == "" {
-			server = "—"
+		address := server
+		if address == "" {
+			address = "—"
+		} else if port != "" {
+			address = net.JoinHostPort(server, port)
 		}
-		var note []string
-		if port != "" {
-			note = append(note, ":"+port)
-		}
+		place := ""
 		if name := model.RegionName(region); found && name != "" {
-			note = append(note, name)
+			place = name
 		}
 		flag := ""
 		if found {
@@ -284,23 +280,22 @@ func (s *outboundsSection) card(c *ui.Context, doc *model.Doc, regions *model.Re
 		name := nodeview.BesideFlag(flag, title)
 		lead := func() {
 			if flag != "" {
-				ui.Text(c, flag).FontSize(15).SingleLine().Shrink(0)
+				ui.Text(c, flag).FontSize(16).SingleLine().Shrink(0)
 			} else {
 				kit.HeroInitial(c, nodeview.GroupInitial(title))
 			}
 		}
-		opts.Header = func() { heroHeader(c, lead, name, invalid, nodeview.ProtocolTag(o.Type)) }
-		opts.Main = func() { kit.HeroMono(c, server) }
-		opts.Footer = func() {
-			ui.Text(c, strings.Join(note, " · ")).FontFeatures("tnum").SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
-			ui.Spacer(c)
+		opts.Header = func() { cardTitle(c, lead, name, invalid) }
+		opts.HeaderEnd = func() { kit.HeroTag(c, nodeview.ProtocolTag(o.Type)) }
+		opts.Main = func() {
+			cardMono(c, !o.Enabled, address)
+			if place != "" {
+				cardDetail(c, !o.Enabled, "· "+place)
+			}
 			if testable {
+				ui.Spacer(c)
 				s.latencyButton(c, id, title)
 			}
-		}
-		if testable {
-			opts.Menu = append(opts.Menu, kit.EntityMenuItem{Label: "测速", Icon: kit.SymGauge, Disabled: s.w.store.Testing(id),
-				Run: func(ui.Element) { s.w.measureLatency([]string{id}) }})
 		}
 	}
 	s.heroCard(c, o, title, opts)
@@ -333,6 +328,7 @@ func (s *outboundsSection) heroCard(c *ui.Context, o *model.Outbound, title stri
 	opts.Menu = append(opts.Menu, kit.EntityMenuItem{Label: "删除", Icon: kit.SymTrash2, Danger: true, Run: func(ui.Element) {
 		s.remove.start(id, "")
 	}})
+	opts.StrongHeader, opts.MinHeight = true, cardHeight
 	s.remove.track(id, title, kit.HeroCard(c, id, opts))
 }
 
