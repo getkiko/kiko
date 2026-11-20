@@ -13,6 +13,7 @@ import (
 	"github.com/getkiko/kiko/app/mygo/internal/env"
 	"github.com/getkiko/kiko/app/mygo/internal/kit"
 	"github.com/getkiko/kiko/app/mygo/internal/model"
+	"github.com/getkiko/kiko/app/mygo/internal/procicon"
 )
 
 // Tabs of the process picker.
@@ -44,24 +45,13 @@ type processPicker struct {
 
 func newProcessPicker(path []int, editing *model.ProcessTag) *processPicker {
 	p := &processPicker{open: true, path: path, editing: editing, loaded: -1, collapsed: map[string]bool{}}
-	switch {
-	case editing == nil:
-		p.tab = pickApplications
-	case editing.Source == model.ProcessSourceApplication:
-		p.tab = pickApplications
-	case editing.Source == model.ProcessSourceProcess:
-		p.tab = pickProcesses
-	default:
-		p.tab = pickCustom
-	}
+	p.tab = pickApplications
 	if editing != nil {
-		p.custom = slices.Index([]string{model.ProcessTypeName, model.ProcessTypePath, model.ProcessTypeRegex}, editing.Type)
-		if p.custom < 0 {
-			p.custom = 0
-		}
-		if editing.Source != model.ProcessSourceApplication {
-			p.drafts[p.custom] = editing.Value
-		}
+		// Editing shows the value as it matches, ready to change.
+		item := model.PlainProcessSelection(editing.ProcessSelection)
+		p.tab = pickCustom
+		p.custom = max(0, slices.Index([]string{model.ProcessTypeName, model.ProcessTypePath, model.ProcessTypeRegex}, item.Type))
+		p.drafts[p.custom] = item.Value
 	}
 	return p
 }
@@ -186,36 +176,9 @@ func (w *Workspace) processField(c *ui.Context, e *ruleEditor, group *model.Cond
 			commit(next)
 		}
 	}, func() { commit(nil) })
-	ui.Row(c).Wrap().Gap(4).Children(func() {
-		for _, tag := range tags {
-			label := model.ProcessSelectionLabel(tag.ProcessSelection)
-			chip := ui.Row(c.Key(fmt.Sprint(tag.Path, tag.Index, tag.Field))).Height(24).PaddingStart(8).PaddingEnd(3).Gap(5).Radius(7).
-				Background(k.Fill).Shrink(0)
-			chip.Children(func() {
-				body := ui.ButtonBase(c).Gap(5).Label("修改进程 " + label)
-				body.Children(func() {
-					if tag.Source == model.ProcessSourceApplication {
-						kit.Icon(c, kit.SymLaptop, 12).TextColor(k.Label2)
-					}
-					ui.Text(c, label).FontSize(kit.FontTable).SingleLine()
-					kind := model.ProcessSelectionType(tag.ProcessSelection)
-					if tag.Excluded {
-						kind = "排除 · " + kind
-					}
-					ui.Text(c, kind).FontSize(10).TextColor(k.Label3)
-				})
-				if body.Clicked() {
-					t := tag
-					e.cond.process = newProcessPicker(path, &t)
-				}
-				x := ui.ButtonBase(c).Size(16, 16).Radius(8).Center().Label("移除进程 " + label).TextColor(k.Label3)
-				x.Children(func() { kit.Icon(c, kit.SymX, 10) })
-				if x.Clicked() && value != nil {
-					commit(model.ChangeProcessTag(value, tag, nil))
-				}
-			})
-		}
-		kit.Button(c, "添加", kit.ButtonOptions{Variant: kit.TextButton, Small: true, Icon: kit.SymPlus}).Label("添加进程条件").OnClick(func() {
+	w.processTokens(c, e, value, tags, path, commit)
+	ui.Row(c).Children(func() {
+		kit.Button(c, "选择应用或进程", kit.ButtonOptions{Variant: kit.TextButton, Small: true, Icon: kit.SymPlus}).Label("添加进程条件").OnClick(func() {
 			e.cond.process = newProcessPicker(path, nil)
 		})
 	})
@@ -309,7 +272,8 @@ func (w *Workspace) processPickerView(c *ui.Context, p *processPicker, tags []mo
 	changeTab := func(tab int) {
 		p.tab, p.query, p.invalid = tab, "", ""
 	}
-	resultRow := func(item model.ProcessSelection, icon kit.Symbol, detail, trailing string) {
+	icons := procicon.For(w.env)
+	resultRow := func(item model.ProcessSelection, icon procicon.Process, detail, trailing string) {
 		added := selected(item)
 		name := item.Label
 		if name == "" {
@@ -326,7 +290,7 @@ func (w *Workspace) processPickerView(c *ui.Context, p *processPicker, tags []mo
 			row.Background(k.Fill)
 		}
 		row.Children(func() {
-			kit.Icon(c, icon, 16).TextColor(k.Label2)
+			procicon.View(c, icons, icon, procicon.Options{Size: 24})
 			ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
 				ui.Text(c, name).FontSize(kit.FontBody).SingleLine().Ellipsis("…")
 				ui.Text(c, detail).FontSize(kit.FontCaption).TextColor(k.Label3).SingleLine().Ellipsis("…")
@@ -344,6 +308,20 @@ func (w *Workspace) processPickerView(c *ui.Context, p *processPicker, tags []mo
 		}
 	}
 	kit.Dialog(c, &p.open, title, 560, func() {
+		if p.editing != nil {
+			// The condition being changed, as it matches.
+			cur := model.PlainProcessSelection(p.editing.ProcessSelection)
+			ui.Column(c).Gap(3).Padding(8, 10).Radius(9).Background(k.Fill).Shrink(0).Children(func() {
+				ui.Row(c).Gap(6).Children(func() {
+					ui.Text(c, "当前条件").FontSize(kit.FontCaption).TextColor(k.Label3)
+					kit.Badge(c, model.ProcessSelectionType(cur), kit.Neutral)
+					if cur.Label != "" {
+						ui.Text(c, cur.Label).FontSize(kit.FontCaption).TextColor(k.Label2).SingleLine().Ellipsis("…").MinWidth(0)
+					}
+				})
+				ui.Text(c, cur.Value).Font(kit.MonoFont).FontSize(kit.FontTable).TextColor(k.Label).Selectable()
+			})
+		}
 		ui.Row(c).Gap(8).Shrink(0).Children(func() {
 			tab := p.tab
 			if kit.Segmented(c, "source", &tab, kit.Segment{Label: "已安装应用"}, kit.Segment{Label: "运行中进程"}, kit.Segment{Label: "自定义"}).Label("进程条件来源").Changed() {
@@ -372,7 +350,7 @@ func (w *Workspace) processPickerView(c *ui.Context, p *processPicker, tags []mo
 		host := map[string]string{"darwin": " macOS", "windows": " Windows", "linux": " Linux"}[os]
 		caption := "选择具体进程，按完整路径匹配"
 		if p.tab == pickApplications {
-			caption = "选择整个应用及其目录内的进程"
+			caption = "按应用目录的路径正则匹配，包含其中的全部进程"
 		}
 		ui.Text(c, "来自运行 Kiko 的"+host+" 主机 · "+caption).FontSize(kit.FontCaption).TextColor(k.Label3)
 		search := strings.ToLower(strings.TrimSpace(p.query))
@@ -396,8 +374,8 @@ func (w *Workspace) processPickerView(c *ui.Context, p *processPicker, tags []mo
 							continue
 						}
 						shown++
-						resultRow(model.ProcessSelection{Source: model.ProcessSourceApplication, Type: model.ProcessTypeRegex, Value: app.Path, Label: app.Name},
-							kit.SymLaptop, app.Path, "")
+						item := model.AppSelection(app.Path, app.Name)
+						resultRow(item, procicon.Process{Path: app.Path, Name: app.Name, AppPath: procicon.Bundle(app.Path)}, item.Value, "")
 					}
 				}
 				if shown == 0 {
@@ -433,8 +411,9 @@ func (w *Workspace) processPickerView(c *ui.Context, p *processPicker, tags []mo
 							if it.count > 1 {
 								trailing = fmt.Sprintf("%d 个实例", it.count)
 							}
-							resultRow(model.ProcessSelection{Source: model.ProcessSourceProcess, Type: model.ProcessTypePath, Value: it.process.Path, Label: it.process.Name},
-								kit.SymCpu, it.process.Path, trailing)
+							pr := it.process
+							resultRow(model.ProcessSelection{Source: model.ProcessSourceProcess, Type: model.ProcessTypePath, Value: pr.Path, Label: pr.Name},
+								procicon.Process{PID: pr.PID, StartedAt: pr.StartedAt, Path: pr.Path, Name: pr.Name, AppPath: pr.AppPath}, pr.Path, trailing)
 						}
 					})
 				}

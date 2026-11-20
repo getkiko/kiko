@@ -586,6 +586,13 @@ func Checkbox(c *ui.Context, checked *bool, label string) ui.Element {
 	return box
 }
 
+// FocusRing draws a field's focus ring, or its error ring, inside its
+// edges as an inner shadow: unlike a border it takes no room, so that
+// focusing the field moves nothing.
+func FocusRing(e ui.Element, width float32, color ui.Color) ui.Element {
+	return e.InsetShadow(0, 0, 0, width, color)
+}
+
 // Input is a 30 DIP text field with a 9 DIP radius, bound to *value.
 func Input(c *ui.Context, key any, value *string, placeholder string) ui.Element {
 	k := T(c)
@@ -600,7 +607,7 @@ func Input(c *ui.Context, key any, value *string, placeholder string) ui.Element
 		}
 	})
 	if input.Focused() {
-		wrap.Border(1.5, k.Accent.Alpha(0.6))
+		FocusRing(wrap, 1.5, k.Accent.Alpha(0.6))
 	}
 	noteTextFocus(c, input)
 	return input
@@ -615,7 +622,7 @@ func TextArea(c *ui.Context, key any, value *string, placeholder string, mono bo
 		area.Font(MonoFont)
 	}
 	if area.Focused() {
-		area.Border(1.5, k.Accent.Alpha(0.6))
+		FocusRing(area, 1.5, k.Accent.Alpha(0.6))
 	}
 	noteTextFocus(c, area)
 	return area

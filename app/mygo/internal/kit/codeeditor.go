@@ -227,10 +227,9 @@ func CodeEditor(c *ui.Context, s *CodeState, o CodeOptions) ui.Element {
 			ed.Focus()
 		}
 	})
+	frame.Border(0.5, k.Hairline)
 	if ed.Focused() {
-		frame.Border(1.5, k.Accent.Alpha(0.6))
-	} else {
-		frame.Border(0.5, k.Hairline)
+		FocusRing(frame, 1.5, k.Accent.Alpha(0.6))
 	}
 	return frame
 }

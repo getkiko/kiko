@@ -29,6 +29,9 @@ type SearchSelectOptions struct {
 	// OnOpen, when set, is called each time the panel opens, before the
 	// first OnQuery, for options that must be read again on every open.
 	OnOpen func()
+	// NoChevron leaves the down arrow out, for a trigger that reads as an
+	// action, as "+ Add".
+	NoChevron bool
 }
 
 type searchSelectState struct {
@@ -170,7 +173,9 @@ func searchSelectTrigger(c *ui.Context, key any, current string, muted bool, o S
 		if muted {
 			text.TextColor(k.Label3)
 		}
-		Icon(c, SymChevronDown, 11).TextColor(k.Label3)
+		if !o.NoChevron {
+			Icon(c, SymChevronDown, 11).TextColor(k.Label3)
+		}
 	})
 	if o.Disabled {
 		s.open = false

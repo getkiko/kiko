@@ -623,13 +623,23 @@ func TestProcessPicker(t *testing.T) {
 	tt.Frame()
 	f.click("添加进程条件")
 	testkit.UntilText(t, tt, "选择 Safari")
+	f.snapshot("routes-process-picker-light.png", false)
 	f.click("选择 Safari")
 	testkit.UntilText(t, tt, "已添加 1 项")
 	f.click("完成")
-	testkit.UntilText(t, tt, "整个应用")
+	testkit.UntilText(t, tt, "Safari")
 	if f.w.editor == nil {
 		t.Fatal("the picker closed the editor")
 	}
+	// The chip edits the condition, showing its path regex.
+	f.click(`^/Applications/Safari\.app/`)
+	testkit.UntilText(t, tt, "修改进程条件")
+	if !tt.HasText("当前条件") || !tt.HasText(`^/Applications/Safari\.app/`) {
+		t.Fatalf("the original value is not shown: %q", tt.Texts())
+	}
+	f.snapshot("routes-process-edit-light.png", false)
+	f.click("完成")
+	tt.Frame()
 	f.click("保存规则")
 	f.waitSaved(func(doc *model.Doc) bool {
 		raw, _ := json.Marshal(findRule(doc, "r-apple").ConditionTree)

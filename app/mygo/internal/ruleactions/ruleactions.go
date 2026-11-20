@@ -101,7 +101,7 @@ func Conditions(doc *model.Doc, t Target) []Condition {
 	}
 	if app := strings.TrimSpace(t.AppPath); app != "" && doc.Platform == model.PlatformDarwin {
 		name := firstNonEmpty(t.AppName, strings.TrimSuffix(baseName(app), ".app"))
-		process("所属 App "+name, name, model.ProcessSelection{Source: model.ProcessSourceApplication, Type: model.ProcessTypeRegex, Value: app, Label: name})
+		process("所属 App "+name, name, model.AppSelection(app, name))
 	}
 	return out
 }

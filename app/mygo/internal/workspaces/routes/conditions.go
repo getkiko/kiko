@@ -694,7 +694,7 @@ func (w *Workspace) fieldForm(c *ui.Context, doc *model.Doc, e *ruleEditor, grou
 					opts = append(opts, kit.Option{Value: ep.ID, Label: ep.Tag})
 				}
 			}
-			if next, changed := multiSelect(c, "value", current, opts, "选择"+spec.label+"，可多选", true); changed {
+			if next, changed := multiSelect(c, "value", current, opts, spec.label, "选择"+spec.label); changed {
 				put(anyList(next))
 			}
 		case spec.key == "user_id":
@@ -866,91 +866,102 @@ func ruleSetSelect(c *ui.Context, key any, doc *model.Doc, value any) ([]string,
 			options = append(options, kit.Option{Value: tag, Label: tag + " · 当前不可用"})
 		}
 	}
-	return multiSelect(c, key, selected, options, "选择规则集", true)
+	return multiSelect(c, key, selected, options, "规则集", "选择规则集")
 }
 
-type multiSelectState struct {
-	open  bool
-	query string
-}
-
-// multiSelect chooses several options: a trigger listing the chosen ones
-// opens a popover of check marks, searchable.
-func multiSelect(c *ui.Context, key any, selected []string, options []kit.Option, placeholder string, searchable bool) ([]string, bool) {
-	k := kit.T(c)
+// multiSelect chooses several options as the other TAG fields do: chips
+// of the chosen ones, wrapping, and a click or typing lists the others,
+// filtered by what is typed. It copies the values and pastes them back by
+// value or label.
+func multiSelect(c *ui.Context, key any, selected []string, options []kit.Option, label, placeholder string) ([]string, bool) {
 	labels := map[string]string{}
 	for _, o := range options {
 		labels[o.Value] = o.Label
 	}
-	var names []string
-	for _, v := range selected {
-		if l := labels[v]; l != "" {
-			names = append(names, l)
-		} else {
-			names = append(names, v)
-		}
-	}
-	text := strings.Join(names, "、")
-	trigger := ui.ButtonBase(c.Key(key)).MinHeight(kit.ControlHeight).PaddingX(10).Gap(6).Radius(kit.RadiusInput).
-		FontSize(kit.FontTable).Background(k.Fill).TextColor(k.Label).FillWidth().Justify(ui.Start).Label(placeholder)
-	s := ui.Local(trigger, "multi", func() multiSelectState { return multiSelectState{} })
-	trigger.Children(func() {
-		t := ui.Text(c, text).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
-		if text == "" {
-			t = ui.Text(c, placeholder).SingleLine().Grow(1).MinWidth(0).TextColor(k.Label3)
-		}
-		_ = t
-		kit.Icon(c, kit.SymChevronDown, 11).TextColor(k.Label3)
-	})
-	if trigger.Clicked() {
-		s.open = !s.open
-		s.query = ""
-	}
 	var next []string
 	changed := false
-	ui.PopoverBase(c, trigger, &s.open, func(panel ui.Element) {
-		w, _ := c.Size()
-		kit.Popup(c, panel).Margin(4, 0, 0, 0).Width(min(320, max(w-32, 200))).Padding(6).Gap(4).MaxHeight(min(360, kit.PopoverRoom(c, trigger, 4))).Label(placeholder)
-		if searchable {
-			ui.Row(c).Height(30).PaddingX(9).Gap(6).Radius(8).Background(k.Fill).TextColor(k.Label3).Shrink(0).Children(func() {
-				kit.Icon(c, kit.SymSearch, 14)
-				ui.TextInputBase(c, &s.query).Grow(1).MinWidth(0).FontSize(kit.FontBody).TextColor(k.Label).
-					Placeholder("搜索").SingleLine().Label("搜索选项").AutoFocus()
-			})
+	set := func(values []string) { next, changed = values, true }
+	ui.Column(c.Key(key)).Shrink(0).Children(func() {
+		box := ui.Column(c).Shrink(0)
+		query := ui.Local(box, "multi-query", func() string { return "" })
+		draft := strings.ToLower(strings.TrimSpace(*query))
+		tokens := make([]kit.Token, 0, len(selected))
+		for _, v := range selected {
+			text := labels[v]
+			if text == "" {
+				text = v
+			}
+			// "name · detail" shows the detail muted.
+			name, detail, _ := strings.Cut(text, " · ")
+			tokens = append(tokens, kit.Token{ID: v, Label: name, Detail: detail, Title: text, Text: v})
 		}
-		query := strings.ToLower(strings.TrimSpace(s.query))
-		ui.Scroll(c).Grow(1).Shrink(1).MinHeight(0).Gap(1).Children(func() {
-			shown := 0
+		var suggestions []kit.TokenSuggestion
+		for _, o := range options {
+			if slices.Contains(selected, o.Value) || draft != "" && !strings.Contains(strings.ToLower(o.Label+" "+o.Value), draft) {
+				continue
+			}
+			suggestions = append(suggestions, kit.TokenSuggestion{ID: o.Value, Label: o.Label})
+		}
+		// find is the option a typed or pasted value names, by value or
+		// label.
+		find := func(v string) string {
+			v = strings.TrimSpace(v)
 			for _, o := range options {
-				if query != "" && !strings.Contains(strings.ToLower(o.Label+" "+o.Value), query) {
-					continue
-				}
-				shown++
-				on := slices.Contains(selected, o.Value)
-				item := ui.ButtonBase(c.Key(o.Value)).MinHeight(30).PaddingX(9).Gap(8).Radius(7).FillWidth().Justify(ui.Start).
-					FontSize(kit.FontBody).Label(o.Label).Checked(on).Transition(kit.HoverMotion)
-				if item.Hovered() {
-					item.Background(k.Fill)
-				}
-				item.Children(func() {
-					ui.Text(c, o.Label).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
-					mark := kit.Icon(c, kit.SymCheck, 14).TextColor(k.AccentText)
-					if !on {
-						mark.Invisible()
-					}
-				})
-				if item.Clicked() {
-					if on {
-						next = slices.DeleteFunc(slices.Clone(selected), func(v string) bool { return v == o.Value })
-					} else {
-						next = append(slices.Clone(selected), o.Value)
-					}
-					changed = true
+				if strings.EqualFold(o.Value, v) || strings.EqualFold(o.Label, v) {
+					return o.Value
 				}
 			}
-			if shown == 0 {
-				ui.Text(c, "没有可选项").FontSize(kit.FontTable).TextColor(k.Label3).Padding(10)
+			return ""
+		}
+		add := func(values []string) {
+			out := slices.Clone(selected)
+			for _, v := range values {
+				if v != "" && !slices.Contains(out, v) {
+					out = append(out, v)
+				}
 			}
+			if len(out) != len(selected) {
+				set(out)
+			}
+		}
+		box.Children(func() {
+			kit.TokenInput(c, "tokens", query, kit.TokenInputOptions{
+				Label: label, Placeholder: placeholder, Tokens: tokens, Suggestions: suggestions, Browse: true,
+				Commit: func(suggestion string) bool {
+					if suggestion == "" {
+						if len(suggestions) == 0 {
+							return false
+						}
+						suggestion = find(*query)
+						if suggestion == "" {
+							suggestion = suggestions[0].ID
+						}
+					}
+					add([]string{suggestion})
+					return true
+				},
+				// Leaving the field adds only an option named exactly.
+				Blur: func() bool {
+					if v := find(*query); v != "" {
+						add([]string{v})
+					}
+					return true
+				},
+				Remove: func(id string) {
+					set(slices.DeleteFunc(slices.Clone(selected), func(v string) bool { return v == id }))
+				},
+				RemoveAll: func(ids []string) {
+					set(slices.DeleteFunc(slices.Clone(selected), func(v string) bool { return slices.Contains(ids, v) }))
+				},
+				Split: kit.SplitTokenLines,
+				Paste: func(values []string) {
+					var found []string
+					for _, v := range values {
+						found = append(found, find(v))
+					}
+					add(found)
+				},
+			})
 		})
 	})
 	return next, changed

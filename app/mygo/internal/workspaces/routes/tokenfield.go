@@ -3,11 +3,13 @@ package routes
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/getkiko/kiko/app/mygo/internal/kit"
 	"github.com/getkiko/kiko/app/mygo/internal/model"
+	"golang.org/x/net/publicsuffix"
 )
 
 // services names well-known ports.
@@ -225,11 +227,148 @@ func (w *Workspace) tokenField(c *ui.Context, doc *model.Doc, e *ruleEditor, kin
 				}
 			}
 		},
+		RemoveAll: func(ids []string) {
+			e.replaceRules(path, removeTokens(group, entries, ids))
+			s.errors[key] = ""
+		},
+		Split: tokenSplit(kind),
+		Paste: func(values []string) {
+			var additions []model.MatchValue
+			var bad []string
+			for _, v := range values {
+				more, problem := tokenAdditions(doc, kind, v, "")
+				if problem != "" {
+					bad = append(bad, v)
+					continue
+				}
+				additions = append(additions, more...)
+			}
+			if len(additions) > 0 {
+				e.replaceRules(path, model.AddMatchValues(group, kind, additions))
+			}
+			s.errors[key] = pasteProblem(bad)
+		},
 	})
 	if input.Changed() {
 		s.errors[key] = ""
 	}
 	s.queries[key] = query
+}
+
+// tokenSplit splits a paste into the values of a typed field: ports keep
+// "30 - 500" a range, Wi-Fi names keep their spaces.
+func tokenSplit(kind string) func(string) []string {
+	switch kind {
+	case model.TypedPort, model.TypedSourcePort:
+		return func(text string) []string { return kit.SplitTokens(rePortSpaces.ReplaceAllString(text, "$1")) }
+	case model.TypedWiFi:
+		return kit.SplitTokenLines
+	}
+	return nil
+}
+
+// removeTokens removes the tokens of ids, the last first, so that the
+// indexes of those before stay right.
+func removeTokens(group *model.Condition, entries []model.MatchToken, ids []string) *model.Condition {
+	next := group
+	for i := len(entries) - 1; i >= 0; i-- {
+		if slices.Contains(ids, entries[i].ID) {
+			next = model.RemoveMatchToken(next, entries[i])
+		}
+	}
+	return next
+}
+
+// pasteProblem names the pasted values a field could not add, "" for none.
+func pasteProblem(bad []string) string {
+	if len(bad) == 0 {
+		return ""
+	}
+	more := ""
+	if len(bad) > 3 {
+		more = " 等"
+	}
+	return fmt.Sprintf("%d 条格式不正确：%s%s", len(bad), strings.Join(bad[:min(3, len(bad))], "、"), more)
+}
+
+// domainPrefixes name each domain kind before its value as a copy writes
+// it ("suffix:google.com"), for a paste to read the kind back.
+var domainPrefixes = []struct{ prefix, field string }{
+	{"full:", "domain"}, {"suffix:", "domain_suffix"}, {"contains:", "domain_keyword"}, {"regex:", "domain_regex"},
+	// The field names and "keyword:" read as well.
+	{"domain_suffix:", "domain_suffix"}, {"domain_keyword:", "domain_keyword"}, {"domain_regex:", "domain_regex"},
+	{"domain:", "domain"}, {"keyword:", "domain_keyword"},
+}
+
+// domainClip is a domain value as a copy writes it, its kind first.
+func domainClip(field string, value any) string {
+	for _, p := range domainPrefixes {
+		if p.field == field {
+			return p.prefix + fmt.Sprint(value)
+		}
+	}
+	return fmt.Sprint(value)
+}
+
+// domainPrefixed splits a value whose kind is named before it.
+func domainPrefixed(value string) (field, rest string, ok bool) {
+	for _, p := range domainPrefixes {
+		if len(value) > len(p.prefix) && strings.EqualFold(value[:len(p.prefix)], p.prefix) {
+			return p.field, strings.TrimSpace(value[len(p.prefix):]), true
+		}
+	}
+	return "", value, false
+}
+
+// domainSplit splits a pasted list of domains: a line naming a regex
+// ("regex:^a{1,3}\.com$") or anchored as one ("^…") stays whole, as its commas and
+// spaces belong to it; other lines split as SplitTokens does.
+func domainSplit(text string) []string {
+	var out []string
+	for _, line := range strings.FieldsFunc(text, func(r rune) bool { return r == '\n' || r == '\r' }) {
+		line = strings.TrimSpace(line)
+		field, _, prefixed := domainPrefixed(line)
+		if prefixed && field == "domain_regex" || !prefixed && strings.HasPrefix(line, "^") {
+			if line != "" && !slices.Contains(out, line) {
+				out = append(out, line)
+			}
+			continue
+		}
+		for _, v := range kit.SplitTokens(line) {
+			if !slices.Contains(out, v) {
+				out = append(out, v)
+			}
+		}
+	}
+	return out
+}
+
+// domainPaste parses a pasted domain: a kind named before it as a copy
+// writes it ("suffix:apple.com"), a wildcard ("*.apple.com", ".apple.com"
+// or "+.apple.com") as a suffix, a regex, or a full match.
+func domainPaste(value string) (model.DomainEntry, string) {
+	value = strings.TrimSpace(value)
+	if field, rest, ok := domainPrefixed(value); ok {
+		return model.ParseDomainEntry(rest, field)
+	}
+	if rest, ok := strings.CutPrefix(value, "+."); ok {
+		return model.ParseDomainEntry(rest, "domain_suffix")
+	}
+	if strings.HasPrefix(value, "*.") || strings.HasPrefix(value, ".") && !model.IsDomainRegex(value) {
+		return model.ParseDomainEntry(value, "domain_suffix")
+	}
+	return model.ParseDomainEntry(value, "")
+}
+
+// rootDomain is a host's registrable domain (eTLD+1, "google.com" for
+// "www.google.com", "bbc.co.uk" for "news.bbc.co.uk"), "" when the host is
+// one already or has none.
+func rootDomain(host string) string {
+	root, err := publicsuffix.EffectiveTLDPlusOne(host)
+	if err != nil || root == host {
+		return ""
+	}
+	return root
 }
 
 // domainSuggestions are the kinds a typed domain could be added as: a
@@ -239,7 +378,21 @@ func domainSuggestions(draft string) []kit.TokenSuggestion {
 		return nil
 	}
 	var out []kit.TokenSuggestion
+	if _, _, ok := domainPrefixed(draft); ok {
+		// A kind named first: that kind only.
+		if entry, problem := domainPaste(draft); problem == "" {
+			out = append(out, kit.TokenSuggestion{ID: "typed", Label: entry.Value, Detail: model.DomainKindLabel(entry.Field)})
+		}
+		return out
+	}
 	parsed, problem := model.ParseDomainEntry(draft, "")
+	if problem == "" && parsed.Field == "domain" {
+		// The registrable domain first, for Enter: as an address offers
+		// its network.
+		if root := rootDomain(parsed.Value); root != "" {
+			out = append(out, kit.TokenSuggestion{ID: "root", Label: root, Detail: "主域名 · 后缀，包含子域名"})
+		}
+	}
 	switch {
 	case model.IsDomainRegex(draft):
 		label := draft
@@ -330,13 +483,32 @@ func (w *Workspace) domainField(c *ui.Context, e *ruleEditor, group *model.Condi
 			detail = "排除"
 		}
 		tokens = append(tokens, kit.Token{ID: t.ID, Label: fmt.Sprint(t.Value), Badge: kindLabel, Detail: detail,
-			Editable: t.Field == "domain_regex", Title: title})
+			Editable: t.Field == "domain_regex", Title: title, Text: domainClip(t.Field, t.Value)})
 	}
 	input := kit.TokenInput(c, "tokens", &query, kit.TokenInputOptions{
 		Label: "域名", Placeholder: "例如 example.com，回车添加", Error: s.errors[key], Tokens: tokens,
 		Suggestions: domainSuggestions(draft),
 		Commit: func(suggestion string) bool {
-			entry, problem := model.ParseDomainEntry(draft, suggestion)
+			var entry model.DomainEntry
+			var problem string
+			if suggestion == "" {
+				// Enter alone takes the first suggestion, the registrable
+				// domain of a host.
+				if first := domainSuggestions(draft); len(first) > 0 {
+					suggestion = first[0].ID
+				}
+			}
+			switch _, _, prefixed := domainPrefixed(draft); {
+			case suggestion == "root":
+				// The registrable domain of the host as parsed ("*." and
+				// "." left out).
+				parsed, _ := model.ParseDomainEntry(draft, "")
+				entry, problem = model.ParseDomainEntry(rootDomain(parsed.Value), "domain_suffix")
+			case suggestion == "typed" || suggestion == "" && prefixed:
+				entry, problem = domainPaste(draft)
+			default:
+				entry, problem = model.ParseDomainEntry(draft, suggestion)
+			}
 			if problem != "" {
 				s.errors[key] = problem
 				return false
@@ -351,6 +523,41 @@ func (w *Workspace) domainField(c *ui.Context, e *ruleEditor, group *model.Condi
 					e.replaceRules(path, model.RemoveMatchToken(group, t))
 				}
 			}
+		},
+		RemoveAll: func(ids []string) {
+			e.replaceRules(path, removeTokens(group, entries, ids))
+			s.errors[key] = ""
+		},
+		ClipKind: model.TypedDomain,
+		Whole:    func(value string) bool { _, _, ok := domainPrefixed(value); return ok },
+		Split:    domainSplit,
+		// Leaving the field adds what was typed as it reads, not the
+		// registrable domain Enter takes first.
+		Blur: func() bool {
+			entry, problem := domainPaste(draft)
+			if problem != "" {
+				s.errors[key] = problem
+				return false
+			}
+			e.replaceRules(path, model.AddMatchValues(group, model.TypedDomain, []model.MatchValue{{Field: entry.Field, Value: entry.Value}}))
+			s.errors[key] = ""
+			return true
+		},
+		Paste: func(values []string) {
+			var additions []model.MatchValue
+			var bad []string
+			for _, v := range values {
+				entry, problem := domainPaste(v)
+				if problem != "" {
+					bad = append(bad, v)
+					continue
+				}
+				additions = append(additions, model.MatchValue{Field: entry.Field, Value: entry.Value})
+			}
+			if len(additions) > 0 {
+				e.replaceRules(path, model.AddMatchValues(group, model.TypedDomain, additions))
+			}
+			s.errors[key] = pasteProblem(bad)
 		},
 		TokenClick: func(id string, _ ui.Element) {
 			s.regex[key], s.regexOpen, s.regexText = id, true, ""

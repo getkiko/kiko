@@ -306,6 +306,19 @@ func HeroTag(c *ui.Context, text string) {
 	CapsuleTag(c, text, k.Label2, ui.Color{}, k.Label4)
 }
 
+// HeroTags are a hero card's header tags, "链" for an item dialing
+// through a proxy chain before its protocol tag (when not "").
+func HeroTags(c *ui.Context, chained bool, protocol string) {
+	ui.Row(c).Gap(4).Shrink(0).Children(func() {
+		if chained {
+			HeroTag(c, "链")
+		}
+		if protocol != "" {
+			HeroTag(c, protocol)
+		}
+	})
+}
+
 // HeroValue is a hero card's main value, 22 DIPs semibold with tabular
 // figures, as a port; HeroMono is an address, 18 DIPs monospaced. Both
 // take the main row's color and shorten to fit.

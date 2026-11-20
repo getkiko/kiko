@@ -137,6 +137,28 @@ func ProcessSelectionType(item ProcessSelection) string {
 	return "正则"
 }
 
+// AppSelection is an application chosen as a process condition: a path
+// regex anchored at its start ("^/Applications/Safari\.app/"), which every
+// process inside the bundle matches, labelled by the app's name.
+func AppSelection(appPath, name string) ProcessSelection {
+	appPath = reTrailingSlashes.ReplaceAllString(strings.TrimSpace(appPath), "")
+	return ProcessSelection{Source: ProcessSourceCustom, Type: ProcessTypeRegex, Value: ProcessPathRegex(appPath, true), Label: name}
+}
+
+// PlainProcessSelection is a selection as the editor shows it: an
+// application of an older document as its path regex (AppSelection),
+// others as they are.
+func PlainProcessSelection(item ProcessSelection) ProcessSelection {
+	if item.Source == ProcessSourceApplication {
+		label := item.Label
+		if label == "" {
+			label = strings.TrimSuffix(ProcessSelectionLabel(ProcessSelection{Type: ProcessTypePath, Value: item.Value}), ".app")
+		}
+		return AppSelection(item.Value, label)
+	}
+	return item
+}
+
 // ProcessSelectionLeaf is the condition of a selection.
 func ProcessSelectionLeaf(item ProcessSelection) *Condition {
 	ui := &UIProcess{Source: item.Source, Label: item.Label}
