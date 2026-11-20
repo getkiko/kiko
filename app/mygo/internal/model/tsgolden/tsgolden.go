@@ -151,11 +151,26 @@ func Replay(t *testing.T, calls []Call, adapters map[string]Adapter, options Opt
 		}
 		ran[c.Fn]++
 		got, err := run(adapter, c)
-		if fix := fixFor(options.Fixed, c); fix != nil && fix.Want != nil {
-			c.R = fix.Want(c, got)
-		} else if fix != nil {
-			if message := fix.Check(c, got, err); message != "" {
-				report(t, failures, c, "fixed TypeScript bug ("+fix.Bug+"): "+message)
+		// Every fix with a Want that matches rewrites the recorded result
+		// in turn, so independent fixes of one call compose; without one,
+		// the first matching Check decides.
+		var check *Fix
+		wanted := false
+		for i := range options.Fixed {
+			fix := &options.Fixed[i]
+			if fix.Fn != c.Fn || !fix.Match(c) {
+				continue
+			}
+			if fix.Want != nil {
+				c.R = fix.Want(c, got)
+				wanted = true
+			} else if check == nil {
+				check = fix
+			}
+		}
+		if !wanted && check != nil {
+			if message := check.Check(c, got, err); message != "" {
+				report(t, failures, c, "fixed TypeScript bug ("+check.Bug+"): "+message)
 			}
 			continue
 		}
@@ -178,15 +193,6 @@ func Replay(t *testing.T, calls []Call, adapters map[string]Adapter, options Opt
 		}
 	}
 	return ran
-}
-
-func fixFor(fixes []Fix, c Call) *Fix {
-	for i := range fixes {
-		if fixes[i].Fn == c.Fn && fixes[i].Match(c) {
-			return &fixes[i]
-		}
-	}
-	return nil
 }
 
 func run(adapter Adapter, c Call) (result any, err error) {
