@@ -35,6 +35,11 @@ type appliedState struct {
 
 	cachedVersion, cachedGeneration int
 	cached                          Unapplied
+
+	// detours are AppliedDetours of the configuration of generation
+	// detoursGeneration.
+	detours           map[string]string
+	detoursGeneration int
 }
 
 // unappliedPart names a part of the configuration and the workspace that

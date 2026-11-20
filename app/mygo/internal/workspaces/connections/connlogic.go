@@ -100,18 +100,107 @@ func rejectedLabel(c *api.Connection) string {
 	return "拒绝"
 }
 
-// chainName is the outbound chain, "a → b"; "Rejected" for a refused
-// connection.
+// chainName is the outbound chain in the order traffic takes it, the
+// groups first and the outbound they chose last, "group → outbound";
+// "Rejected" for a refused connection. The core lists it the other way.
 func chainName(c *api.Connection) string {
 	if c.Rejected() {
 		return "拒绝"
 	}
-	if len(c.ChainList) > 0 {
-		if s := strings.Join(c.ChainList, " → "); s != "" {
-			return s
+	return pathText(connectionPath(c, nil, nil))
+}
+
+// Roles of the hops of a connection's path.
+const (
+	hopGroup    = "group"
+	hopOutbound = "outbound"
+	hopDetour   = "detour"
+)
+
+// hop is an outbound a connection passes through: a group choosing, the
+// outbound chosen, or a detour that outbound dials through.
+type hop struct {
+	Tag  string
+	Role string
+}
+
+// maxDetourHops bounds a detour chain, against a loop the core refuses.
+const maxDetourHops = 8
+
+// connectionPath is the outbounds c passes through in the order traffic
+// takes them: the groups and the outbound the core reported, then the
+// detours that outbound dials through (detours, by tag), a detour that is
+// a group followed by its chosen member (selected, by group); nil for a
+// refused connection.
+func connectionPath(c *api.Connection, detours, selected map[string]string) []hop {
+	if c.Rejected() {
+		return nil
+	}
+	var path []hop
+	for i := len(c.ChainList) - 1; i >= 0; i-- {
+		if tag := c.ChainList[i]; tag != "" {
+			path = append(path, hop{Tag: tag, Role: hopGroup})
 		}
 	}
-	return firstNonEmpty(c.Outbound, "—")
+	if len(path) == 0 && c.Outbound != "" {
+		path = append(path, hop{Tag: c.Outbound})
+	}
+	if len(path) == 0 {
+		return nil
+	}
+	path[len(path)-1].Role = hopOutbound
+	seen := map[string]bool{}
+	for _, h := range path {
+		seen[h.Tag] = true
+	}
+	last := path[len(path)-1].Tag
+	for range maxDetourHops {
+		next := detours[last]
+		if next == "" || seen[next] {
+			break
+		}
+		path = append(path, hop{Tag: next, Role: hopDetour})
+		seen[next] = true
+		last = next
+		if member := selected[next]; member != "" && !seen[member] {
+			path = append(path, hop{Tag: member, Role: hopDetour})
+			seen[member] = true
+			last = member
+		}
+	}
+	return path
+}
+
+// pathText is a path as "a → b → c"; "—" for none.
+func pathText(path []hop) string {
+	if len(path) == 0 {
+		return "—"
+	}
+	tags := make([]string, len(path))
+	for i, h := range path {
+		tags[i] = h.Tag
+	}
+	return strings.Join(tags, " → ")
+}
+
+// pathDetail is a path with each hop's role, for the inspector:
+// "自选（策略组） → 马来西亚服务器 → 香港 01（前置代理）".
+func pathDetail(path []hop) string {
+	if len(path) == 0 {
+		return "—"
+	}
+	parts := make([]string, len(path))
+	for i, h := range path {
+		switch h.Role {
+		case hopGroup:
+			parts[i] = h.Tag + "（策略组）"
+		case hopDetour:
+			parts[i] = h.Tag + "（前置代理）"
+		default:
+			parts[i] = h.Tag
+		}
+	}
+	return strings.Join(parts, " → ")
 }
 
 func firstNonEmpty(values ...string) string {

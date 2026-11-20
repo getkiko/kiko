@@ -124,7 +124,9 @@ func (m *connMonitor) detail(c *ui.Context, d *connDerived, row *Row, now time.T
 			} else {
 				property(c, "出站", firstNonEmpty(conn.Outbound, "—")+" · "+firstNonEmpty(conn.OutboundType, "—"))
 			}
-			property(c, "链路", chainName(conn))
+			if !conn.Rejected() {
+				property(c, "链路", pathDetail(m.path(conn)))
+			}
 		})
 		kit.Section(c, "进程与用量", nil, func() {
 			switch name := processName(conn); {

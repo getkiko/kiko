@@ -198,6 +198,27 @@ func (m *connMonitor) toolbar(c *ui.Context, d *connDerived, hasFilters bool) {
 	})
 }
 
+// path is the outbounds conn passes through, with the detours of the
+// configuration the core runs and the members its groups chose now.
+func (m *connMonitor) path(conn *api.Connection) []hop {
+	var detours map[string]string
+	if m.store != nil {
+		detours = m.store.AppliedDetours()
+	}
+	var selected map[string]string
+	if server := m.env.Server; server != nil {
+		for _, g := range server.Selectors {
+			if g.Now != "" {
+				if selected == nil {
+					selected = map[string]string{}
+				}
+				selected[g.Name] = g.Now
+			}
+		}
+	}
+	return connectionPath(conn, detours, selected)
+}
+
 // faded reports a line drawn faded: an ended connection among all of
 // them. The Closed tab lists only ended ones, and shows them as they are.
 func (m *connMonitor) faded(v visibleNode) bool {
@@ -452,7 +473,7 @@ func (m *connMonitor) cell(c *ui.Context, d *connDerived, names *srcname.Names, 
 				})
 				return
 			}
-			kit.Clipped(c, chainName(conn), kit.FontCaption, 400).TextColor(k.Label3)
+			kit.Clipped(c, pathText(m.path(conn)), kit.FontCaption, 400).TextColor(k.Label3)
 		})
 	case colUploadRate:
 		rate(c, kit.SymArrowUp, upColor, kit.Rate(row.UpRate))
