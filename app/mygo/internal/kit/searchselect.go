@@ -31,9 +31,6 @@ type SearchSelectOptions struct {
 	OnOpen func()
 }
 
-// searchSelectLimit is how many matches the panel lists at once.
-const searchSelectLimit = 80
-
 type searchSelectState struct {
 	open   bool
 	query  string
@@ -49,6 +46,9 @@ type searchSelectState struct {
 	// pointer is where the pointer was over the panel as it last made an
 	// option active: one resting there leaves the keys' choice.
 	pointer [2]float32
+	// list is the options' virtual list: every match is listed, only the
+	// rows in view are built.
+	list ui.ListState
 }
 
 // normalizeSearch folds text for matching: lower case, without marks,
@@ -65,8 +65,7 @@ func normalizeSearch(s string) string {
 }
 
 // SearchSelectMatches returns the options matching query by label, detail
-// and value, as the panel lists them: at most 80, the current value first
-// when it would fall beyond them.
+// and value, all of them, as the panel lists them.
 func SearchSelectMatches(options []Option, value, query string) (visible []Option, total int) {
 	needle := normalizeSearch(query)
 	var matches []Option
@@ -75,19 +74,7 @@ func SearchSelectMatches(options []Option, value, query string) (visible []Optio
 			matches = append(matches, o)
 		}
 	}
-	selected := -1
-	for i, o := range matches {
-		if o.Value == value {
-			selected = i
-			break
-		}
-	}
-	if query == "" && selected >= searchSelectLimit {
-		visible = append([]Option{matches[selected]}, matches[:searchSelectLimit-1]...)
-	} else {
-		visible = matches[:min(len(matches), searchSelectLimit)]
-	}
-	return visible, len(matches)
+	return matches, len(matches)
 }
 
 // SearchSelect is a single choice with local search (NativeSearchSelect,
@@ -249,8 +236,11 @@ func searchSelectPanel(c *ui.Context, trigger ui.Element, s *searchSelectState, 
 			choose(visible[s.active])
 			return
 		}
-		ui.Scroll(c).Grow(1).Shrink(1).MinHeight(0).Gap(1).Label(o.Label + "选项").Children(func() {
-			for i, option := range visible {
+		if len(visible) == 0 {
+			ui.Text(c, "没有匹配项，试试其他名称或代码").FontSize(FontTable).TextColor(k.Label3).Padding(10)
+		} else {
+			ui.List(c, &s.list, len(visible), func(i int) {
+				option := visible[i]
 				item := ui.ButtonBase(c.Key(option.Value)).MinHeight(30).PaddingX(9).Gap(8).Radius(7).FillWidth().
 					Justify(ui.Start).FontSize(FontBody).TextColor(k.Label).Label(option.Label).Transition(HoverMotion)
 				if item.Hovered() {
@@ -278,22 +268,15 @@ func searchSelectPanel(c *ui.Context, trigger ui.Element, s *searchSelectState, 
 						}
 					}
 				})
-				if i == s.active && s.reveal {
-					item.ScrollIntoView()
-					s.reveal = false
-				}
 				if item.Clicked() {
 					choose(option)
 				}
+			}).Grow(1).Shrink(1).MinHeight(0).Label(o.Label + "选项")
+			if s.reveal && s.active >= 0 {
+				s.list.ScrollIntoView(s.active)
+				s.reveal = false
 			}
-			if len(visible) == 0 {
-				ui.Text(c, "没有匹配项，试试其他名称或代码").FontSize(FontTable).TextColor(k.Label3).Padding(10)
-			}
-		})
-		count := fmt.Sprintf("%d 项匹配", total)
-		if total > len(visible) {
-			count = fmt.Sprintf("%d 项匹配 · 显示前 %d 项，继续输入缩小范围", total, len(visible))
 		}
-		ui.Text(c, count).FontSize(FontCaption).TextColor(k.Label3).Padding(2, 6, 0).Shrink(0)
+		ui.Text(c, fmt.Sprintf("%d 项匹配", total)).FontSize(FontCaption).TextColor(k.Label3).Padding(2, 6, 0).Shrink(0)
 	})
 }

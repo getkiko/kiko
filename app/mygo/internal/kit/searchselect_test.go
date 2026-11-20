@@ -1,6 +1,7 @@
 package kit
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -169,5 +170,41 @@ func TestSearchSelectOnOpenWithoutQueryOnce(t *testing.T) {
 		}
 		tt.Key(0, ui.KeyEscape)
 		tt.Frame()
+	}
+}
+
+// Every option is listed, however many: the panel opens at the current
+// one far down the list, and Down reaches the last.
+func TestSearchSelectListsEveryOption(t *testing.T) {
+	var options []Option
+	for i := range 300 {
+		options = append(options, Option{Value: fmt.Sprint(i), Label: fmt.Sprintf("节点 %03d", i)})
+	}
+	value := "260"
+	tt := ui.NewTester(func(c *ui.Context) {
+		Apply(c)
+		c.Root().Background(T(c).Surface).Padding(20)
+		SearchSelect(c, "pick", &value, options, SearchSelectOptions{Label: "出站", Width: 200})
+	}, 640, 600)
+	tt.Frame()
+	if err := tt.Click("出站：节点 260"); err != nil {
+		t.Fatalf("open: %v; %q", err, tt.Texts())
+	}
+	tt.Frame()
+	tt.Frame()
+	if !tt.HasText("300 项匹配") || !tt.HasText("节点 260") {
+		t.Fatalf("panel: %q", tt.Texts())
+	}
+	if tt.HasText("节点 000") {
+		t.Fatal("rows out of view are built")
+	}
+	for range 50 {
+		tt.Key(0, ui.KeyDown)
+		tt.Frame()
+	}
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if value != "299" {
+		t.Fatalf("chose %q, want the last option", value)
 	}
 }
