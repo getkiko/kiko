@@ -347,11 +347,12 @@ func (c *Client) TailscaleExitNode(ctx context.Context, tag, stableID string) er
 	return c.Send(ctx, http.MethodPost, "/tailscale/exit-node", map[string]string{"endpointTag": tag, "stableID": stableID}, nil)
 }
 
-// BrowserOpen opens url, the home page when empty, in a browser whose
-// connections all go through outbound, the tag in the running core:
-// engine "webview" the built-in browser, "chrome" Chrome.
-func (c *Client) BrowserOpen(ctx context.Context, outbound, engine, url string) error {
-	body := map[string]string{"outbound": outbound, "engine": engine, "url": url}
+// BrowserOpen opens a browser whose connections all go through outbound,
+// the tag in the running core: engine "webview" the built-in browser,
+// "chrome" Chrome. Starting, it shows home, the server's default when
+// empty, and allows WebRTC with webRTC; already open, it comes forward.
+func (c *Client) BrowserOpen(ctx context.Context, outbound, engine, home string, webRTC bool) error {
+	body := map[string]any{"outbound": outbound, "engine": engine, "home": home, "webRTC": webRTC}
 	return c.Send(ctx, http.MethodPost, "/browser/open", body, nil)
 }
 

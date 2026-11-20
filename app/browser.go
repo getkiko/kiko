@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -27,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sagernet/sing-box/daemon"
@@ -60,6 +62,9 @@ type browserSession struct {
 	// executable and args start Chrome again for another window.
 	executable string
 	args       func(target string) []string
+	// proxyDown tells the core's proxy has failed since it first listened:
+	// the browser cannot reach the web until it is back.
+	proxyDown atomic.Bool
 }
 
 func (b *browserSession) running() bool {
@@ -75,6 +80,9 @@ func (b *browserSession) running() bool {
 type browsers struct {
 	mu       sync.Mutex
 	sessions map[string]*browserSession
+	// starting are the sessions on their way, closed once they run or
+	// failed, so that another request for one waits for it.
+	starting map[string]chan struct{}
 	closing  bool
 }
 
@@ -84,8 +92,15 @@ type browserOpenRequest struct {
 	Outbound string `json:"outbound"`
 	// Engine is "webview", the built-in browser, or "chrome".
 	Engine string `json:"engine"`
-	// URL is the page to open, the home page when empty.
+	// URL is a page to open; without it a browser already open only comes
+	// forward.
 	URL string `json:"url,omitempty"`
+	// Home is the page a browser starting without URL opens, the default
+	// home page when empty.
+	Home string `json:"home,omitempty"`
+	// WebRTC lets a browser starting use WebRTC, whose UDP goes around the
+	// outbound; without it WebRTC is off.
+	WebRTC bool `json:"webRTC,omitempty"`
 }
 
 // browserOpenResult names the browser that shows the page.
@@ -149,59 +164,104 @@ func (s *server) openBrowser(ctx context.Context, in browserOpenRequest) (browse
 	if engine != browserBuiltIn && engine != browserChrome {
 		return browserOpenResult{}, errors.New("未知的浏览器类型")
 	}
-	target, err := browserTarget(in.URL)
+	page, err := browserTarget(in.URL)
 	if err != nil {
 		return browserOpenResult{}, err
 	}
-	result := browserOpenResult{Browser: browserName(engine), URL: target}
+	if strings.TrimSpace(in.URL) == "" {
+		page = ""
+	}
+	// The home page counts only when a page shows it.
+	home := func() (string, error) {
+		page, err := browserTarget(in.Home)
+		if err != nil {
+			return "", errors.New("浏览器默认页面无效，请在设置中修改")
+		}
+		return page, nil
+	}
 	key := engine + "\x00" + outbound
 
-	s.browsers.mu.Lock()
-	defer s.browsers.mu.Unlock()
-	if s.browsers.closing {
-		return browserOpenResult{}, errors.New("应用正在退出")
+	// Start the session, or wait for one on its way; nothing slow runs
+	// with the lock held.
+	var starting chan struct{}
+	for starting == nil {
+		s.browsers.mu.Lock()
+		if s.browsers.closing {
+			s.browsers.mu.Unlock()
+			return browserOpenResult{}, errors.New("应用正在退出")
+		}
+		if session := s.browsers.sessions[key]; session != nil && session.running() && session.proxyDown.Load() {
+			// Its proxy cannot come back on its port, as when another
+			// program took it while the core restarted: start anew.
+			delete(s.browsers.sessions, key)
+			s.browsers.mu.Unlock()
+			session.end()
+			select {
+			case <-session.done:
+			case <-time.After(5 * time.Second):
+				_ = session.cmd.Process.Kill()
+			}
+			continue
+		}
+		if session := s.browsers.sessions[key]; session != nil && session.running() {
+			s.browsers.mu.Unlock()
+			shown := page
+			if shown == "" && session.input == nil {
+				// Chrome opens a window with the home page.
+				if shown, err = home(); err != nil {
+					return browserOpenResult{}, err
+				}
+			}
+			return browserOpenResult{Browser: browserName(engine), URL: shown}, session.show(shown)
+		}
+		if wait := s.browsers.starting[key]; wait != nil {
+			s.browsers.mu.Unlock()
+			select {
+			case <-wait:
+				continue
+			case <-ctx.Done():
+				return browserOpenResult{}, ctx.Err()
+			}
+		}
+		starting = make(chan struct{})
+		if s.browsers.starting == nil {
+			s.browsers.starting = map[string]chan struct{}{}
+		}
+		s.browsers.starting[key] = starting
+		s.browsers.mu.Unlock()
 	}
-	if session := s.browsers.sessions[key]; session != nil && session.running() {
-		return result, session.show(target)
-	}
-	var executable string
-	if engine == browserBuiltIn {
-		executable, err = findBuiltInBrowser(s.singBox)
-	} else {
-		executable, err = findChrome()
-	}
-	if err != nil {
-		return browserOpenResult{}, err
-	}
-	proxyCtx, stop := context.WithCancel(context.Background())
-	address, err := s.startOutboundProxy(proxyCtx, ctx, outbound)
-	if err != nil {
-		stop()
-		return browserOpenResult{}, err
-	}
-	session := &browserSession{outbound: outbound, engine: engine, stop: stop, done: make(chan struct{}), executable: executable}
-	if engine == browserBuiltIn {
-		session.cmd, session.input, err = startBuiltInBrowser(executable, "http://"+address, target, outbound)
-	} else {
-		profile := filepath.Join(s.dataDir, "browser", "chrome-"+browserProfileID(outbound))
-		session.args = func(target string) []string { return chromeArgs(profile, address, target) }
-		session.cmd = exec.Command(executable, session.args(target)...)
-		err = session.cmd.Start()
-		if err != nil {
-			err = fmt.Errorf("启动 Chrome 失败：%w", err)
+	defer func() {
+		s.browsers.mu.Lock()
+		delete(s.browsers.starting, key)
+		s.browsers.mu.Unlock()
+		close(starting)
+	}()
+
+	target := page
+	if target == "" {
+		if target, err = home(); err != nil {
+			return browserOpenResult{}, err
 		}
 	}
+	session, err := s.startBrowser(ctx, outbound, engine, target, in.WebRTC)
 	if err != nil {
-		stop()
 		return browserOpenResult{}, err
+	}
+	s.browsers.mu.Lock()
+	if s.browsers.closing {
+		s.browsers.mu.Unlock()
+		session.end()
+		go func() { _ = session.cmd.Wait() }()
+		return browserOpenResult{}, errors.New("应用正在退出")
 	}
 	if s.browsers.sessions == nil {
 		s.browsers.sessions = map[string]*browserSession{}
 	}
 	s.browsers.sessions[key] = session
+	s.browsers.mu.Unlock()
 	go func() {
 		_ = session.cmd.Wait()
-		stop()
+		session.stop()
 		close(session.done)
 		s.browsers.mu.Lock()
 		if s.browsers.sessions[key] == session {
@@ -209,14 +269,70 @@ func (s *server) openBrowser(ctx context.Context, in browserOpenRequest) (browse
 		}
 		s.browsers.mu.Unlock()
 	}()
-	return result, nil
+	return browserOpenResult{Browser: browserName(engine), URL: target}, nil
 }
 
-// show opens target in the session's browser: the built-in window loads
-// it, Chrome opens another window of its instance.
+// startBrowser starts the core's proxy through outbound and the browser of
+// engine on it, showing target, with WebRTC when webRTC.
+func (s *server) startBrowser(ctx context.Context, outbound, engine, target string, webRTC bool) (*browserSession, error) {
+	var executable string
+	var err error
+	if engine == browserBuiltIn {
+		executable, err = findBuiltInBrowser(s.singBox)
+	} else {
+		executable, err = findChrome()
+	}
+	if err != nil {
+		return nil, err
+	}
+	session := &browserSession{outbound: outbound, engine: engine, done: make(chan struct{}), executable: executable}
+	proxyCtx, stop := context.WithCancel(context.Background())
+	session.stop = stop
+	address, err := s.startOutboundProxy(proxyCtx, ctx, outbound, func(up bool) { session.proxyDown.Store(!up) })
+	if err != nil {
+		stop()
+		return nil, err
+	}
+	if engine == browserBuiltIn {
+		session.cmd, session.input, err = startBuiltInBrowser(executable, "http://"+address, target, outbound, webRTC)
+	} else {
+		profile := filepath.Join(s.dataDir, "browser", "chrome-"+browserProfileID(outbound))
+		// A Chrome of the profile left from before, as when Kiko did not
+		// exit cleanly, would take the window on its old proxy.
+		endProfileInstance(profile)
+		session.args = func(target string) []string { return chromeArgs(profile, address, target, webRTC) }
+		session.cmd = exec.Command(executable, session.args(target)...)
+		if err = session.cmd.Start(); err != nil {
+			err = fmt.Errorf("启动 Chrome 失败：%w", err)
+		}
+	}
+	if err != nil {
+		stop()
+		return nil, err
+	}
+	return session, nil
+}
+
+// end closes the session's browser and its proxy.
+func (b *browserSession) end() {
+	if b.input != nil {
+		// The built-in browser ends at the end of its input.
+		_ = b.input.Close()
+	} else if b.cmd.Process != nil {
+		terminate(b.cmd.Process)
+	}
+	b.stop()
+}
+
+// show brings the session's browser forward, with target when given: the
+// built-in window loads it, Chrome opens another window of its instance.
 func (b *browserSession) show(target string) error {
 	if b.input != nil {
-		if err := json.NewEncoder(b.input).Encode(map[string]string{"url": target}); err != nil {
+		command := map[string]string{"focus": "1"}
+		if target != "" {
+			command = map[string]string{"url": target}
+		}
+		if err := json.NewEncoder(b.input).Encode(command); err != nil {
 			return errors.New("内置浏览器已关闭，请重新打开")
 		}
 		return nil
@@ -234,25 +350,38 @@ func (b *browserSession) show(target string) error {
 func (s *server) closeBrowsers() {
 	s.browsers.mu.Lock()
 	s.browsers.closing = true
+	var starting []chan struct{}
+	for _, wait := range s.browsers.starting {
+		starting = append(starting, wait)
+	}
+	s.browsers.mu.Unlock()
+	// A browser on its way ends itself as it finds the server closing.
+	for _, wait := range starting {
+		select {
+		case <-wait:
+		case <-time.After(2 * browserReadyTimeout):
+		}
+	}
+	s.browsers.mu.Lock()
 	sessions := s.browsers.sessions
 	s.browsers.sessions = nil
 	s.browsers.mu.Unlock()
 	for _, session := range sessions {
-		if session.input != nil {
-			// The built-in browser ends at the end of its input.
-			_ = session.input.Close()
-		} else if session.cmd.Process != nil {
-			_ = session.cmd.Process.Kill()
-		}
-		session.stop()
+		session.end()
 	}
+	// Browsers save their cookies and session as they quit; all get the
+	// same time to.
+	deadline := time.After(5 * time.Second)
 	for _, session := range sessions {
 		select {
 		case <-session.done:
-		case <-time.After(2 * time.Second):
-			if session.cmd.Process != nil {
-				_ = session.cmd.Process.Kill()
+		case <-deadline:
+			for _, session := range sessions {
+				if session.running() && session.cmd.Process != nil {
+					_ = session.cmd.Process.Kill()
+				}
 			}
+			return
 		}
 	}
 }
@@ -260,8 +389,9 @@ func (s *server) closeBrowsers() {
 // startOutboundProxy has the core serve a proxy through outbound, until
 // ctx ends, and returns its address once it listens, waiting no longer
 // than wait allows. When the core restarts the proxy follows it on the
-// same port, so the browser keeps working.
-func (s *server) startOutboundProxy(ctx, wait context.Context, outbound string) (string, error) {
+// same port, so the browser keeps working; state tells whether it is up
+// after it first listened.
+func (s *server) startOutboundProxy(ctx, wait context.Context, outbound string, state func(up bool)) (string, error) {
 	type result struct {
 		address string
 		err     error
@@ -270,10 +400,25 @@ func (s *server) startOutboundProxy(ctx, wait context.Context, outbound string) 
 	go func() {
 		var port uint32
 		reported := false
+		var logged string
+		retry := time.Second
 		report := func(r result) {
 			if !reported {
 				reported = true
 				first <- r
+				return
+			}
+			if ctx.Err() != nil {
+				// The browser closed.
+				return
+			}
+			state(r.err == nil)
+			if r.err == nil {
+				logged, retry = "", time.Second
+			} else if r.err.Error() != logged {
+				// The browser runs on: its pages fail until the proxy is back.
+				logged = r.err.Error()
+				log.Printf("[browser] proxy through %q: %v", outbound, r.err)
 			}
 		}
 		for ctx.Err() == nil {
@@ -303,8 +448,9 @@ func (s *server) startOutboundProxy(ctx, wait context.Context, outbound string) 
 			}
 			select {
 			case <-ctx.Done():
-			case <-time.After(time.Second):
+			case <-time.After(retry):
 			}
+			retry = min(2*retry, 30*time.Second)
 		}
 	}()
 	timeout := time.NewTimer(browserReadyTimeout)
@@ -372,10 +518,14 @@ func findBuiltInBrowser(core string) (string, error) {
 	return "", errors.New("缺少内置浏览器组件，请重新安装 Kiko")
 }
 
-// startBuiltInBrowser starts kiko-browser on proxy and waits for its
-// window, or for the reason it cannot show one.
-func startBuiltInBrowser(executable, proxy, target, outbound string) (*exec.Cmd, io.WriteCloser, error) {
-	command := exec.Command(executable, proxy, target, browserProfileUUID(outbound), outbound)
+// startBuiltInBrowser starts kiko-browser on proxy, with WebRTC when
+// webRTC, and waits for its window, or for the reason it cannot show one.
+func startBuiltInBrowser(executable, proxy, target, outbound string, webRTC bool) (*exec.Cmd, io.WriteCloser, error) {
+	rtc := "no-webrtc"
+	if webRTC {
+		rtc = "webrtc"
+	}
+	command := exec.Command(executable, proxy, target, browserProfileUUID(outbound), outbound, rtc)
 	input, err := command.StdinPipe()
 	if err != nil {
 		return nil, nil, err
@@ -449,12 +599,13 @@ func findChrome() (string, error) {
 }
 
 // chromeArgs start Chrome on the profile through the proxy at address:
-// nothing bypasses it, not even loopback, QUIC is off so that every
-// connection takes the proxy, and WebRTC sends no UDP around it.
-func chromeArgs(profile, address, target string) []string {
-	return []string{
-		"--user-data-dir=" + profile, "--proxy-server=http://" + address, "--proxy-bypass-list=<-loopback>",
-		"--disable-quic", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
-		"--no-first-run", "--no-default-browser-check", "--new-window", target,
+// nothing bypasses it, not even loopback, and QUIC is off so that every
+// connection takes the proxy. Without webRTC, WebRTC sends no UDP around
+// it; with it, WebRTC's UDP goes the way routing sends it.
+func chromeArgs(profile, address, target string, webRTC bool) []string {
+	args := []string{"--user-data-dir=" + profile, "--proxy-server=http://" + address, "--proxy-bypass-list=<-loopback>", "--disable-quic"}
+	if !webRTC {
+		args = append(args, "--force-webrtc-ip-handling-policy=disable_non_proxied_udp")
 	}
+	return append(args, "--no-first-run", "--no-default-browser-check", "--new-window", target)
 }

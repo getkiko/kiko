@@ -109,6 +109,23 @@ func (w *Workspace) networkGroup(c *ui.Context, doc *model.Doc) {
 				}
 			})
 		})
+		kit.SettingsRow(c, "浏览器默认页面", "", func() {
+			value := doc.BrowserHomeURL
+			ui.Column(c).Width(300).Gap(4).Children(func() {
+				if kit.Input(c, "browser-home", &value, model.DefaultBrowserHomeURL).Label("浏览器默认页面").Changed() {
+					w.update(func(d *model.Doc) { d.BrowserHomeURL = strings.TrimSpace(value) })
+				}
+				if !model.ValidBrowserHomeURL(value) {
+					kit.FormError(c, "请输入 HTTP 或 HTTPS 网页地址")
+				}
+			})
+		})
+		kit.SettingsRow(c, "浏览器允许 WebRTC", "", func() {
+			on := doc.BrowserWebRTC
+			if kit.Switch(c, &on, "浏览器允许 WebRTC").Changed() {
+				w.update(func(d *model.Doc) { d.BrowserWebRTC = on })
+			}
+		})
 		kit.SettingsRow(c, "统一延迟", "", func() {
 			on := !doc.LatencyPlain
 			if kit.Switch(c, &on, "统一延迟").Changed() {

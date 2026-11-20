@@ -12,14 +12,16 @@ import (
 // way while its state has not come back yet.
 const reconnectHold = 10 * time.Second
 
-// stuckStates are the state lines a reconnect may mend: the control
-// connection lost, a connection problem, or no fresh state.
-var stuckStates = map[string]bool{"控制连接已断开": true, "连接异常": true, "状态已过期": true}
+// lostControl is the state line of a lost control connection, the one a
+// reconnect mends. A stale state is the app's stream gone quiet, and a
+// connection warning is about relays or UDP: restarting the control
+// connection would not help them.
+const lostControl = "控制连接已断开"
 
 // reconnectable reports whether a live endpoint's state line offers a
 // reconnect.
 func reconnectable(live bool, line stateLine) bool {
-	return live && line.tone == toneWarn && stuckStates[line.text]
+	return live && line.text == lostControl
 }
 
 // reconnects are the Tailscale endpoints reconnecting, by tag, with when

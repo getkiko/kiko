@@ -2,16 +2,18 @@
 // connection goes through one outbound, by way of the HTTP proxy the core
 // serves for it on a loopback port.
 //
-//   kiko-browser <proxy http://127.0.0.1:port> <url> <profile uuid> <outbound>
+//   kiko-browser <proxy http://127.0.0.1:port> <url> <profile uuid> <outbound> <webrtc|no-webrtc>
 //
 // The profile names the window's own website data store, the outbound's
 // cookies and logins kept from one run to the next. It writes READY once
 // the window shows, or "ERROR <message>" and exits; each JSON line on its
-// input, {"url": "..."}, loads that page. The end of its input closes it.
+// input brings the window forward, and {"url": "..."} loads that page.
+// The end of its input closes it.
 // It needs macOS 14 for a data store's own proxy.
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
 #import <Network/Network.h>
+#import <objc/message.h>
 
 @interface KikoBrowser : NSObject <NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate>
 @property NSWindow *window;
@@ -47,7 +49,7 @@ static BOOL webURL(NSURL *url) {
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     if (@available(macOS 14.0, *)) {
         NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
-        if (args.count != 5 || !webURL([NSURL URLWithString:args[2]])) {
+        if (args.count != 6 || !webURL([NSURL URLWithString:args[2]])) {
             report(@"ERROR 浏览器启动参数无效");
             [NSApp terminate:nil];
             return;
@@ -77,9 +79,18 @@ static BOOL webURL(NSURL *url) {
         nw_proxy_config_clear_excluded_domains(proxyConfig);
         config.websiteDataStore.proxyConfigurations = @[ proxyConfig ];
         config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeAll;
-        // WebRTC would send UDP around the proxy, telling the real address.
-        NSString *noRTC = @"for(const k of ['RTCPeerConnection','webkitRTCPeerConnection']){try{Object.defineProperty(globalThis,k,{value:undefined,writable:false,configurable:false})}catch{}}";
-        [config.userContentController addUserScript:[[WKUserScript alloc] initWithSource:noRTC injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO]];
+        // WebRTC sends its UDP around the proxy, telling the real address,
+        // so it is off unless asked for. WebKit turns it off for every
+        // frame; the script, for a WebKit without the preference, hides it
+        // in the frames it runs in.
+        if (![args[5] isEqual:@"webrtc"]) {
+            SEL peerConnection = NSSelectorFromString(@"_setPeerConnectionEnabled:");
+            if ([config.preferences respondsToSelector:peerConnection]) {
+                ((void (*)(id, SEL, BOOL))objc_msgSend)(config.preferences, peerConnection, NO);
+            }
+            NSString *noRTC = @"for(const k of ['RTCPeerConnection','webkitRTCPeerConnection']){try{Object.defineProperty(globalThis,k,{value:undefined,writable:false,configurable:false})}catch{}}";
+            [config.userContentController addUserScript:[[WKUserScript alloc] initWithSource:noRTC injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO]];
+        }
         [self showWindow:config];
         report(@"READY");
         [self navigate:self.target];

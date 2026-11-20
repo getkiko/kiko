@@ -476,3 +476,21 @@ func TestSettingsClosedConnectionLimit(t *testing.T) {
 	}
 	f.save("settings-connections.png")
 }
+
+// The browser's home page is a setting of the document, empty for the
+// server's default.
+func TestBrowserHomeSetting(t *testing.T) {
+	f := newFixture(t, mixedDoc())
+	if !f.tt.HasText("浏览器默认页面") {
+		t.Fatalf("no browser home row: %q", f.tt.Texts())
+	}
+	revision := f.srv.Store().Revision
+	// The input sits right of the row's title.
+	r, _ := f.tt.Find("浏览器默认页面")
+	f.tt.ClickAt(r.X+300, r.Y+r.H/2)
+	f.tt.Frame()
+	f.tt.Type(" https://example.com/ip ")
+	testkit.Until(t, f.tt, func() bool { return f.srv.Store().Revision > revision && !f.store.Saving() })
+	testkit.Until(t, f.tt, func() bool { return f.store.Doc().BrowserHomeURL == "https://example.com/ip" })
+	f.save("settings-browser-home.png")
+}

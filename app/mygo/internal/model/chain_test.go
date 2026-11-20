@@ -111,3 +111,11 @@ func TestChainError(t *testing.T) {
 		t.Fatalf("without UDP %v", got)
 	}
 }
+
+func TestValidBrowserHomeURL(t *testing.T) {
+	for raw, want := range map[string]bool{"": true, "example.com": true, "http://a.test/x": true, "ftp://a": false, "about:blank": false, "https://": false} {
+		if got := model.ValidBrowserHomeURL(raw); got != want {
+			t.Errorf("%q: %v", raw, got)
+		}
+	}
+}

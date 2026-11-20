@@ -15,9 +15,12 @@ import (
 // An outbound's menu opens a browser through it, by the tag the core runs
 // it with; outbounds that forward nothing have no such items.
 func TestOutboundBrowserItems(t *testing.T) {
-	f := newFixture(t, chainFixtureDoc())
+	doc := chainFixtureDoc()
+	doc.BrowserHomeURL = "https://example.com/ip"
+	doc.BrowserWebRTC = true
+	f := newFixture(t, doc)
 	var mu sync.Mutex
-	var asked map[string]string
+	var asked map[string]any
 	f.srv.Route("POST", "/browser/open", func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		mu.Lock()
@@ -25,7 +28,7 @@ func TestOutboundBrowserItems(t *testing.T) {
 		mu.Unlock()
 		testkit.JSON(map[string]string{"browser": "Chrome"})(w, r)
 	})
-	doc := f.store.Doc()
+	doc = f.store.Doc()
 	var labels []string
 	for _, o := range doc.Outbounds {
 		if o.ID != "out_jp" {
@@ -48,7 +51,7 @@ func TestOutboundBrowserItems(t *testing.T) {
 	testkit.Until(t, f.tt, func() bool {
 		mu.Lock()
 		defer mu.Unlock()
-		return asked["outbound"] == "日本 01" && asked["engine"] == "chrome"
+		return asked["outbound"] == "日本 01" && asked["engine"] == "chrome" && asked["home"] == "https://example.com/ip" && asked["webRTC"] == true
 	})
 	block := outboundOf("out_block", "block", "拒绝", nil)
 	if items := f.w.outbounds.browserItems(block); len(items) != 0 {

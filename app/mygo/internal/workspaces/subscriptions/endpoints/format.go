@@ -106,7 +106,7 @@ func tailscaleConnectionState(s *api.TailscaleStatus, now time.Time) stateLine {
 	}
 	online := s.Self != nil && s.Self.Online
 	if s.BackendState == "Running" && s.Self != nil && !online {
-		return stateLine{"控制连接已断开", toneWarn}
+		return stateLine{lostControl, toneWarn}
 	}
 	for _, message := range s.Health {
 		if tailscaleHealthDiagnostic(message).connectionIssue {

@@ -3,6 +3,7 @@ package model
 import (
 	"bytes"
 	"encoding/json"
+	"net/url"
 	"strings"
 
 	"github.com/getkiko/kiko/app/mygo/internal/schema"
@@ -21,6 +22,26 @@ const (
 	PlatformAndroid = "android"
 	PlatformIOS     = "ios"
 )
+
+// DefaultBrowserHomeURL is the page a browser opened through an outbound
+// shows first while Doc.BrowserHomeURL is empty: the address and place
+// the outbound reaches the web from. The server's default is the same.
+const DefaultBrowserHomeURL = "https://ipinfo.io/"
+
+// ValidBrowserHomeURL reports whether a browser home page is one the
+// server opens: empty, or an http or https URL, https when the scheme is
+// left out.
+func ValidBrowserHomeURL(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return true
+	}
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
+	}
+	u, err := url.Parse(raw)
+	return err == nil && u.Host != "" && (u.Scheme == "http" || u.Scheme == "https")
+}
 
 // DefaultLatencyTestURL is the HTTP 204 address of speed tests.
 const DefaultLatencyTestURL = "https://www.gstatic.com/generate_204"

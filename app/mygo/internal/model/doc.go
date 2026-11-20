@@ -480,6 +480,13 @@ type Doc struct {
 	DNS            DNS             `json:"dns"`
 	Experimental   Experimental    `json:"experimental"`
 	LatencyTestURL string          `json:"latencyTestURL,omitempty"`
+	// BrowserHomeURL is the page a browser opened through an outbound
+	// shows first; empty is the server's default.
+	BrowserHomeURL string `json:"browserHomeURL,omitempty"`
+	// BrowserWebRTC lets those browsers use WebRTC, whose UDP the
+	// outbound's proxy cannot carry: it then goes the way routing sends
+	// it, and pages can learn the real address. Off, WebRTC is disabled.
+	BrowserWebRTC bool `json:"browserWebRTC,omitempty"`
 	// LatencyPlain turns the unified delay off: latency tests then time
 	// the first HTTPS request of a fresh connection. Unset means unified.
 	LatencyPlain bool       `json:"latencyPlain,omitempty"`

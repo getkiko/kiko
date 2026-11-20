@@ -83,8 +83,11 @@ func TestBrowserOpensThroughOutbound(t *testing.T) {
 	if err != nil || result.URL != browserHome || result.Browser != "内置浏览器" {
 		t.Fatalf("open: %+v %v", result, err)
 	}
+	if _, err := s.openBrowser(t.Context(), browserOpenRequest{Outbound: "x", Home: "ftp://a"}); err == nil || !strings.Contains(err.Error(), "默认页面无效") {
+		t.Fatalf("open: %+v %v", result, err)
+	}
 	args, _ := os.ReadFile(filepath.Join(dir, "args"))
-	want := strings.Join([]string{"http://127.0.0.1:23456", browserHome, browserProfileUUID("香港 01"), "香港 01"}, "\n") + "\n"
+	want := strings.Join([]string{"http://127.0.0.1:23456", browserHome, browserProfileUUID("香港 01"), "香港 01", "no-webrtc"}, "\n") + "\n"
 	if string(args) != want {
 		t.Fatalf("args %q, want %q", args, want)
 	}
@@ -97,8 +100,31 @@ func TestBrowserOpensThroughOutbound(t *testing.T) {
 		line, _ := bufio.NewReader(strings.NewReader(string(data))).ReadString('\n')
 		return json.Unmarshal([]byte(line), &command) == nil && command["url"] == "https://example.com/a"
 	})
+	// Opened again without a page, the window only comes forward.
+	if _, err := s.openBrowser(t.Context(), browserOpenRequest{Outbound: "香港 01", Home: "https://elsewhere.test/"}); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "the window brought forward", func() bool {
+		data, _ := os.ReadFile(filepath.Join(dir, "commands"))
+		lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+		return len(lines) == 2 && lines[1] == `{"focus":"1"}`
+	})
 	if got := fake.proxies(); len(got) != 2 || got[1] != "香港 01:0" {
 		t.Fatalf("proxies %v", got)
+	}
+	// A browser whose proxy failed for good starts anew as it is opened.
+	s.browsers.mu.Lock()
+	broken := s.browsers.sessions[browserBuiltIn+"\x00香港 01"]
+	s.browsers.mu.Unlock()
+	broken.proxyDown.Store(true)
+	if _, err := s.openBrowser(t.Context(), browserOpenRequest{Outbound: "香港 01"}); err != nil {
+		t.Fatal(err)
+	}
+	if broken.running() {
+		t.Error("the broken browser still runs")
+	}
+	if got := fake.proxies(); len(got) != 3 {
+		t.Fatalf("proxies after restart %v", got)
 	}
 	s.closeBrowsers()
 	eventually(t, "the browser closed", func() bool {
@@ -120,6 +146,12 @@ func TestBrowserTarget(t *testing.T) {
 		if _, err := browserTarget(raw); err == nil {
 			t.Errorf("%q accepted", raw)
 		}
+	}
+	if args := strings.Join(chromeArgs("p", "127.0.0.1:1", "https://a.test/", false), " "); !strings.Contains(args, "disable_non_proxied_udp") {
+		t.Errorf("WebRTC not limited: %s", args)
+	}
+	if args := strings.Join(chromeArgs("p", "127.0.0.1:1", "https://a.test/", true), " "); strings.Contains(args, "webrtc") {
+		t.Errorf("WebRTC limited although allowed: %s", args)
 	}
 	if a, b := browserProfileUUID("a"), browserProfileUUID("b"); a == b || len(a) != 36 {
 		t.Errorf("profiles %q %q", a, b)

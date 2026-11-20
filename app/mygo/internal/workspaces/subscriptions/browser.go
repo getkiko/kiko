@@ -30,16 +30,22 @@ func (s *outboundsSection) browserItems(o *model.Outbound) []kit.EntityMenuItem 
 	return append(items, kit.EntityMenuItem{Label: "用 Chrome 打开", Icon: kit.SymExternalLink, Disabled: !o.Enabled, Run: open("chrome")})
 }
 
-// openBrowser opens the browser of engine through outbound id, by the tag
-// the core runs it with; a failure shows as a toast.
+// openBrowser opens the home page in the browser of engine through
+// outbound id, by the tag the core runs it with; a failure shows as a
+// toast.
 func (s *outboundsSection) openBrowser(id, engine string) {
 	e := s.w.env
-	tag := emit.EmittedTags(s.w.store.Doc()).Outbounds[id]
+	doc := s.w.store.Doc()
+	tag := emit.EmittedTags(doc).Outbounds[id]
 	if tag == "" {
 		e.Toast("该出站未启用，无法打开浏览器")
 		return
 	}
-	e.Run(func(ctx context.Context) error { return e.API.BrowserOpen(ctx, tag, engine, "") }, func(err error) {
+	// Settings › Browser home page; empty, the server's default. The
+	// server checks it when a page shows it.
+	home := doc.BrowserHomeURL
+	webRTC := doc.BrowserWebRTC
+	e.Run(func(ctx context.Context) error { return e.API.BrowserOpen(ctx, tag, engine, home, webRTC) }, func(err error) {
 		if err != nil {
 			e.Toast("打开浏览器失败：" + err.Error())
 		}
