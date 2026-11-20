@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
+	"strings"
+	"time"
 )
 
 // Revisions change only when the corresponding privileged component changes.
@@ -43,7 +47,7 @@ func inspectHelperInstallation(cfg helperPaths, bundled helperVersions) (helperS
 		executable       bool
 	}{
 		{"特权助手", cfg.HelperExecutable, installed.Helper, bundled.Helper, true},
-		{"核心", cfg.CoreExecutable, installed.Core, bundled.Core, true},
+		{coreComponent, cfg.CoreExecutable, installed.Core, bundled.Core, true},
 		{"TUN 安装组件", cfg.LaunchDaemon, installed.Installer, bundled.Installer, false},
 	}
 	for _, component := range components {
@@ -73,4 +77,52 @@ func inspectHelperInstallation(cfg helperPaths, bundled helperVersions) (helperS
 	}
 	result.NeedsUpdate = !result.Installed || len(result.Changes) > 0
 	return result, nil
+}
+
+// coreComponent is the name of the core among the components.
+const coreComponent = "核心"
+
+// withCoreVersion adds the core to the changes of an installed helper when
+// the installed core reports another version than the app's, though their
+// revisions agree: the revision is bumped by hand and can be forgotten. The
+// version carries the core's commit, so a rebuilt or re-signed core of the
+// same sources asks for nothing. A core that does not answer leaves the
+// status as it is.
+func withCoreVersion(status helperStatus, bundled, installed string) helperStatus {
+	if !status.Installed {
+		return status
+	}
+	for _, change := range status.Changes {
+		if change.Name == coreComponent {
+			return status
+		}
+	}
+	want, err := coreVersion(bundled)
+	if err != nil {
+		return status
+	}
+	have, err := coreVersion(installed)
+	if err != nil || want == have {
+		return status
+	}
+	status.Changes = append(status.Changes, helperChange{Name: coreComponent, Reason: "version"})
+	status.NeedsUpdate = true
+	return status
+}
+
+// coreVersion is the first line kiko-core version prints at path:
+// "sing-box version 1.14.4-f17ce7ed".
+func coreVersion(path string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, path, "version").Output()
+	if err != nil {
+		return "", err
+	}
+	line, _, _ := strings.Cut(string(out), "\n")
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return "", errors.New("kiko-core printed no version")
+	}
+	return line, nil
 }

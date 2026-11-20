@@ -133,3 +133,57 @@ func TestHelperSocketRestartKeepsMatchingInstallation(t *testing.T) {
 		t.Fatalf("launchd restart triggered installation: %+v %v", status, err)
 	}
 }
+
+// fakeCore writes an executable at path printing version as kiko-core does.
+func fakeCore(t *testing.T, path, version string) {
+	t.Helper()
+	script := "#!/bin/sh\n[ \"$1\" = version ] && printf 'sing-box version " + version + "\\nEnvironment: go\\n'\n"
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A core whose revision was not bumped still updates when the installed one
+// reports another version; a rebuilt core of the same version does not.
+func TestHelperCoreVersionCatchesUnbumpedRevision(t *testing.T) {
+	cfg, versions := helperInstallationFixture(t)
+	bundled := filepath.Join(t.TempDir(), "kiko-core")
+	fakeCore(t, bundled, "1.14.4-f17ce7ed")
+	fakeCore(t, cfg.CoreExecutable, "1.14.4-d0991c76")
+	status, err := inspectHelperInstallation(cfg, versions)
+	if err != nil || status.NeedsUpdate {
+		t.Fatalf("revisions agree: %+v %v", status, err)
+	}
+	status = withCoreVersion(status, bundled, cfg.CoreExecutable)
+	if !status.NeedsUpdate || !reflect.DeepEqual(status.Changes, []helperChange{{Name: coreComponent, Reason: "version"}}) {
+		t.Fatalf("another core version: %+v", status)
+	}
+
+	// The same version, rebuilt with other bytes, asks for nothing.
+	fakeCore(t, cfg.CoreExecutable, "1.14.4-f17ce7ed")
+	if err := os.WriteFile(cfg.CoreExecutable, append(mustRead(t, cfg.CoreExecutable), []byte("# re-signed\n")...), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	status, _ = inspectHelperInstallation(cfg, versions)
+	if status = withCoreVersion(status, bundled, cfg.CoreExecutable); status.NeedsUpdate {
+		t.Fatalf("same version: %+v", status)
+	}
+
+	// A core that cannot run (the fixture's placeholders) leaves the status alone.
+	if err := os.WriteFile(cfg.CoreExecutable, []byte("not a program"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	status, _ = inspectHelperInstallation(cfg, versions)
+	if status = withCoreVersion(status, bundled, cfg.CoreExecutable); status.NeedsUpdate {
+		t.Fatalf("unreadable core: %+v", status)
+	}
+}
+
+func mustRead(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}

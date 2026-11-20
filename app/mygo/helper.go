@@ -61,13 +61,19 @@ func newHelperManager(paths *Paths) *helperManager {
 	return manager
 }
 
-// status uses revisions shipped with the app and recorded by the root installer.
+// status uses revisions shipped with the app and recorded by the root
+// installer, and the versions the app's and the installed core report: a
+// core changed without its revision still asks to be installed.
 func (m *helperManager) status() (helperStatus, error) {
 	versions, err := readHelperVersions(m.paths.helperVersionsPath())
 	if err != nil {
 		return helperStatus{}, fmt.Errorf("读取特权组件版本: %w", err)
 	}
-	return inspectHelperInstallation(m.cfg, versions)
+	status, err := inspectHelperInstallation(m.cfg, versions)
+	if err != nil {
+		return status, err
+	}
+	return withCoreVersion(status, m.paths.binaryPath("kiko-core"), m.cfg.CoreExecutable), nil
 }
 
 // ensure installs the helper when needed, or always when force is set.
