@@ -854,6 +854,20 @@ type connNode struct {
 
 func (n *connNode) group() bool { return n.Row == nil }
 
+// ended reports a connection that has closed or was refused, or a group
+// whose connections all have.
+func (n *connNode) ended() bool {
+	if !n.group() {
+		return n.Row.Closed() || n.Row.Rejected()
+	}
+	for _, row := range n.Rows {
+		if !row.Closed() && !row.Rejected() {
+			return false
+		}
+	}
+	return len(n.Rows) > 0
+}
+
 func leafNode(row *connRow) *connNode { return &connNode{Key: "connection:" + row.Conn.ID, Row: row} }
 
 // sortValue is what a node sorts by: a string, an integer or a float.
@@ -917,6 +931,14 @@ func nodeSortValue(n *connNode, key connColumn) sortValue {
 // buildConnectionTree groups rows by App, by process ancestry or by
 // domain, sorted by a column; groupNone lists the rows themselves.
 func buildConnectionTree(rows []*connRow, metadata map[string]processMeta, mode connGroupMode, sort connColumn, descending bool) []*connNode {
+	return buildOrderedConnectionTree(rows, metadata, mode, sort, descending, false)
+}
+
+// buildOrderedConnectionTree is buildConnectionTree that, with endedLast,
+// puts the connections that have ended (closed or refused) after those
+// still open, each part in the order sort gives; a group goes last when
+// all its connections have ended. The All tab lists the open ones first.
+func buildOrderedConnectionTree(rows []*connRow, metadata map[string]processMeta, mode connGroupMode, sort connColumn, descending, endedLast bool) []*connNode {
 	var roots []*connNode
 	index := map[string]*connNode{}
 	create := func(key string, p connProcess, label string) *connNode {
@@ -996,6 +1018,14 @@ func buildConnectionTree(rows []*connRow, metadata map[string]processMeta, mode 
 		}
 	}
 	compare := func(a, b *connNode) int {
+		if endedLast {
+			if ea, eb := a.ended(), b.ended(); ea != eb {
+				if ea {
+					return 1
+				}
+				return -1
+			}
+		}
 		order := nodeSortValue(a, sort).compare(nodeSortValue(b, sort))
 		if descending {
 			order = -order
@@ -1275,7 +1305,7 @@ func queryConnectionPage(all []*connRow, metadata map[string]processMeta, proces
 			out.MatchedActive++
 		}
 	}
-	tree := buildConnectionTree(filtered, metadata, q.Group, q.Sort, q.Descending)
+	tree := buildOrderedConnectionTree(filtered, metadata, q.Group, q.Sort, q.Descending, q.State == "all")
 	out.Total = len(tree)
 	pages := max(1, (out.Total+q.Limit-1)/q.Limit)
 	out.Page = min(max(q.Page, 0), pages-1)
