@@ -9,7 +9,6 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/getkiko/kiko/app/mygo/internal/api"
 	"github.com/getkiko/kiko/app/mygo/internal/kit"
-	"github.com/getkiko/kiko/app/mygo/internal/store"
 	"github.com/getkiko/kiko/app/mygo/internal/testkit"
 )
 
@@ -83,32 +82,6 @@ func TestCardsStartWhereTheTitleStood(t *testing.T) {
 	}
 }
 
-// The apply card, when there is one, is the first card and starts
-// cardsTop down, centered as the page; the dashboard follows 16 DIPs
-// below it, as before.
-func TestApplyCardStartsWhereTheTitleStood(t *testing.T) {
-	title := formerTitle(t)
-	f := runningFixture(t)
-	f.w.apply.changes = func() store.Unapplied { return someChanges }
-	for _, width := range []int{980, 1180, 1600} {
-		f.tt.SetSize(width, 800)
-		f.tt.Frame()
-		f.tt.Advance(applyIn + 100*time.Millisecond)
-		card, ok := f.tt.Find("未应用的更改")
-		if !ok {
-			t.Fatalf("width %d: no apply card: %q", width, f.tt.Texts())
-		}
-		wantX := centeredX(title, width)
-		if !near(card.X, wantX) || !near(card.Y, cardsTop) {
-			t.Errorf("width %d: the apply card starts at (%v, %v), want (%v, %v)", width, card.X, card.Y, wantX, float32(cardsTop))
-		}
-		state, _ := f.tt.Find("核心状态")
-		if gap := state.Y - (card.Y + card.H); !near(gap, 16) {
-			t.Errorf("width %d: the dashboard is %v below the apply card, want 16", width, gap)
-		}
-	}
-}
-
 // The first row of cards keeps its shadow above it, inside the scroll's
 // clip: the pixels just above a card are not the bare window surface.
 func TestFirstCardsShadowIsNotClipped(t *testing.T) {
@@ -134,7 +107,7 @@ func TestFirstCardsShadowIsNotClipped(t *testing.T) {
 
 // TestF19Screenshots writes the page without its title and centered,
 // light and dark in the default window's workspace (1320 less the 140
-// DIP sidebar), wide, narrow, and with the apply card, where
+// DIP sidebar), wide and narrow, where
 // OVERVIEW_PREVIEW_DIR says.
 func TestF19Screenshots(t *testing.T) {
 	if os.Getenv("OVERVIEW_PREVIEW_DIR") == "" {
@@ -156,9 +129,4 @@ func TestF19Screenshots(t *testing.T) {
 	f.tt.SetSize(760, 800)
 	settle()
 	savePreview(t, f.tt, "f19-after-narrow.png")
-	f.w.apply.changes = func() store.Unapplied { return someChanges }
-	f.tt.SetSize(980, 800)
-	f.tt.Frame()
-	f.tt.Advance(applyIn + time.Second)
-	savePreview(t, f.tt, "f19-after-apply.png")
 }

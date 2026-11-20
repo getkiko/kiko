@@ -35,6 +35,9 @@ type fixture struct {
 	mu      sync.Mutex
 	bodies  map[string]string
 	runtime api.Runtime
+	// sidebar shows the sidebar's apply entry beside the page, folded
+	// with folded.
+	sidebar, folded bool
 }
 
 func f64(v float64) *float64 { return &v }
@@ -114,7 +117,19 @@ func newFixtureWith(t *testing.T, doc *model.Doc) *fixture {
 	f.tt = ui.NewTester(func(c *ui.Context) {
 		kit.Apply(c)
 		e.Drain(c)
-		f.w.View(c)
+		if !f.sidebar {
+			f.w.View(c)
+			return
+		}
+		ui.Row(c).Fill().Children(func() {
+			width := float32(140)
+			if f.folded {
+				width = 56
+			}
+			ui.Column(c).Width(width).Padding(0, 8, 10).Shrink(0).Justify(ui.End).Background(kit.T(c).Sidebar).
+				Children(func() { f.w.SidebarApply(c, f.folded) })
+			ui.Column(c).Grow(1).MinWidth(0).Children(func() { f.w.View(c) })
+		})
 	}, 1320, 860)
 	testkit.Until(t, f.tt, func() bool { return f.store.Loaded && e.Server.Connected && len(f.store.Profiles()) == 1 })
 	f.w.SetActive(true)

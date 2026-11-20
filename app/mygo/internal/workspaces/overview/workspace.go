@@ -150,15 +150,13 @@ func (w *Workspace) View(c *ui.Context) {
 	ui.Column(c).Fill().MinWidth(0).MinHeight(0).Background(k.Canvas).Children(func() {
 		ui.Box(c.Key("overview-drag")).Height(cardsTop - cardShadowRoom).FillWidth().Shrink(0).DragWindow()
 		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
-			// The page column is keyed so its bounds stay its own while
-			// the apply card above the grid comes and goes; the grid's
-			// columns follow its width less the side padding.
+			// The grid's columns follow the page column's width less the
+			// side padding.
 			page := ui.Column(c.Key("overview-page")).FillWidth().MaxWidth(pageWidth).Margin(0, ui.Auto).Padding(cardShadowRoom, 20, 24)
 			if b := page.Bounds(); b.W > 40 {
 				w.metrics.width = b.W - 40
 			}
 			page.Children(func() {
-				w.applyCard(c)
 				w.dashboard(c)
 				w.tailscaleCard(c)
 				w.selectorGroups(c)

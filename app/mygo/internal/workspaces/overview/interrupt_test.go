@@ -12,9 +12,9 @@ func TestLiveAppliedMessage(t *testing.T) {
 		outcome store.InterruptResult
 		want    string
 	}{
-		{store.InterruptResult{}, "已不停机应用"},
-		{store.InterruptResult{Closed: 3}, "已不停机应用，已中断 3 条连接"},
-		{store.InterruptResult{Closed: 3, Error: "核心未响应"}, "已不停机应用，中断连接失败：核心未响应"},
+		{store.InterruptResult{}, "已应用"},
+		{store.InterruptResult{Closed: 3}, "已应用，已中断 3 条连接"},
+		{store.InterruptResult{Closed: 3, Error: "核心未响应"}, "已应用，中断连接失败：核心未响应"},
 	}
 	for _, c := range cases {
 		if got := liveAppliedMessage(c.outcome); got != c.want {

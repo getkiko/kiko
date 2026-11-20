@@ -71,6 +71,8 @@ type Console struct {
 	warningsVersion int
 	warnings        map[string]bool
 	unapplied       store.Unapplied
+	// home is the Overview workspace, whose apply entry the sidebar shows.
+	home *overview.Workspace
 
 	// showStderr expands the server's last error output in its notice.
 	showStderr bool
@@ -85,6 +87,7 @@ func New(e *env.Env) *Console {
 	// The Overview Tailscale card shares the Components page's endpoint state.
 	subs, home := subscriptions.New(e, s), overview.New(e, s)
 	home.Tailscale = subs.Tailscale()
+	c.home = home
 	c.workspaces = map[string]env.Workspace{
 		env.PageOverview:      home,
 		env.PageRoute:         route,
@@ -319,6 +322,10 @@ func (c *Console) sidebar(ctx *ui.Context) {
 				})
 			}
 		})
+		// Unapplied changes apply from any page, at the sidebar's foot.
+		if c.home != nil {
+			c.home.SidebarApply(ctx, c.collapsed)
+		}
 	})
 }
 

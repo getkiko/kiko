@@ -4,160 +4,94 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/getkiko/kiko/app/mygo/internal/api"
-	"github.com/getkiko/kiko/app/mygo/internal/env"
 	"github.com/getkiko/kiko/app/mygo/internal/kit"
 	"github.com/getkiko/kiko/app/mygo/internal/store"
 )
 
-// applyPages are the workspaces an unapplied change can belong to, in the
-// sidebar's order.
-var applyPages = []struct{ page, label string }{
-	{env.PageRoute, "路由"},
-	{env.PageSubscriptions, "组件"},
-	{env.PageSettings, "设置"},
-}
-
-// applyPanel is the state of the unapplied changes card.
+// applyPanel is the state of the sidebar's apply entry.
 type applyPanel struct {
 	// restart asks to restart when the core cannot take the changes live.
 	restart kit.ConfirmState
 	reason  string
-
-	// last is the changes the card listed last, which it keeps listing
-	// while it leaves; shown tells the card is in the layout, entering,
-	// resting or leaving; height is its natural height, measured.
-	last   store.Unapplied
-	shown  bool
-	height float32
 
 	// changes, when set, stands in for the store's unapplied changes
 	// (tests).
 	changes func() store.Unapplied
 }
 
-// Entering decelerates and leaving accelerates, so the card and the page
-// below it move at one pace.
-const (
-	applyIn  = 240 * time.Millisecond
-	applyOut = 190 * time.Millisecond
-	// applyGuess is the card's height before it was measured.
-	applyGuess = 84
-)
-
-// applyProgress is how far the card has come in, 0 to 1: it moves at the
-// time of its entry or exit, at once with less motion asked for.
-func applyProgress(slot ui.Element, want, shown, still bool) float32 {
-	target := float32(0)
-	if want {
-		target = 1
+// unapplied are the changes not applied yet.
+func (w *Workspace) unapplied() store.Unapplied {
+	if w.apply.changes != nil {
+		return w.apply.changes()
 	}
-	switch {
-	case still:
-		return slot.Jump("show", target)
-	case !shown:
-		slot.Jump("show", 0)
-	}
-	if want {
-		return slot.AnimateWith("show", target, applyIn, ui.EaseOut)
-	}
-	return slot.AnimateWith("show", target, applyOut, ui.EaseIn)
+	return w.store.Unapplied()
 }
 
-// applyCard is the console's one apply entry: while the document differs
-// from the applied configuration it lists the affected pages and applies
-// live, by restarting the core's services, or, while the core is stopped,
-// by starting it.
-func (w *Workspace) applyCard(c *ui.Context) {
-	a := &w.apply
-	changes := w.store.Unapplied()
-	if a.changes != nil {
-		changes = a.changes()
-	}
-	want := changes.Count() > 0
-	if want {
-		a.last = changes
-	}
-	if !want && !a.shown {
+// SidebarApply is the console's one apply entry, at the foot of the
+// sidebar on every page while the document differs from the applied
+// configuration: how many parts changed, a hint naming them, and Apply,
+// live while the core runs (Restart and apply below it), starting the core
+// while it is stopped. Folded, it is one Apply button carrying the count.
+// The pages the changes belong to carry blue dots in the navigation.
+func (w *Workspace) SidebarApply(c *ui.Context, folded bool) {
+	changes := w.unapplied()
+	if changes.Count() == 0 {
 		return
 	}
-	// The slot is as high as the part of the card that has come in, and
-	// clips it: the page below follows the card's edge, and the card
-	// slides in from above its slot or out to it.
-	slot := ui.Column(c.Key("apply-slot")).Shrink(0)
-	p := applyProgress(slot, want, a.shown, c.Preferences().ReduceMotion)
-	a.shown = want || p > 0.001
-	if !a.shown {
-		return
-	}
-	height := a.height
-	if height <= 0 {
-		height = applyGuess
-	}
-	if p < 0.999 || !want {
-		slot.Clip().Height(height * p)
-	}
-	slot.Children(func() {
-		// The card starts at the page's top; the room under it parts it
-		// from the dashboard and comes and goes with it.
-		body := ui.Column(c.Key("apply-body")).Padding(0, 0, 16).Shrink(0)
-		if b := body.Bounds(); b.H > 0 {
-			a.height = b.H
-		}
-		if p < 0.999 || !want {
-			body.Translate(0, -(1-p)*height)
-		}
-		body.Children(func() { w.applyBody(c, a.last, want) })
-	})
-}
-
-// applyBody is the card listing changes; it takes no presses while it
-// leaves, its changes applied.
-func (w *Workspace) applyBody(c *ui.Context, changes store.Unapplied, active bool) {
 	k := kit.T(c)
 	server := w.env.Server
 	running := server.HasRuntime && runtimePowerState(server.Runtime.State, server.Runtime.DesiredRunning).running
-	busy := w.store.Applying() || w.power.busy || w.power.reloading || server.Runtime.State == "reloading" || !active
-	a := &w.apply
-	ui.Row(c).Padding(12, 16).Gap(12).Radius(18).Border(1, k.HairlineSoft).Background(k.Surface).Shrink(0).
-		AlignItems(ui.Center).Label("未应用的更改").Children(func() {
-		ui.Box(c).Size(8, 8).Radius(4).Background(k.Accent).Shrink(0)
-		ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
-			ui.Text(c, fmt.Sprintf("有 %d 处未应用的更改", changes.Count())).FontSize(kit.FontBody).FontWeight(600)
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Children(func() {
-				ui.Text(c, strings.Join(changes.Parts, "、")).FontSize(kit.FontTable).TextColor(k.Label2)
-				for _, p := range applyPages {
-					if !changes.Pages[p.page] {
-						continue
-					}
-					page := p.page
-					link := ui.ButtonBase(c.Key("apply-page-" + page)).Height(22).PaddingX(9).Radius(11).
-						Background(k.Accent.Alpha(0.1)).TextColor(k.AccentText).Label("前往" + p.label).Disabled(!active)
-					link.Children(func() { ui.Text(c, p.label).FontSize(kit.FontCaption).FontWeight(600) })
-					if link.Clicked() {
-						w.env.Navigate(page, nil)
-					}
+	busy := w.store.Applying() || w.power.busy || w.power.reloading || server.Runtime.State == "reloading"
+	parts := strings.Join(changes.Parts, "、")
+	count := fmt.Sprintf("%d 处更改", changes.Count())
+	apply := func() {
+		if running {
+			w.applyLive()
+		} else {
+			w.toggle()
+		}
+	}
+	label := "应用"
+	if !running {
+		label = "应用并启动"
+	}
+	var anchor ui.Element
+	if folded {
+		row := ui.Row(c).Justify(ui.Center).Shrink(0)
+		row.Children(func() { anchor = w.foldedApply(c, label, count, parts, busy || !server.HasRuntime, busy, apply) })
+	} else {
+		ui.Column(c.Key("sidebar-apply")).Padding(10).Gap(8).Radius(12).Background(k.Accent.Alpha(0.08)).
+			Shrink(0).Label("未应用的更改").Children(func() {
+			head := ui.Row(c).Gap(6).AlignItems(ui.Center).MinWidth(0)
+			head.Children(func() {
+				ui.Box(c).Size(7, 7).Radius(3.5).Background(k.Accent).Shrink(0)
+				ui.Text(c, count).FontSize(kit.FontTable).FontWeight(600).TextColor(k.Label).FontFeatures("tnum").
+					SingleLine().Ellipsis("…").MinWidth(0)
+			})
+			kit.Hint(c, head, parts)
+			anchor = kit.Button(c, label, kit.ButtonOptions{Variant: kit.Primary, Small: true, Disabled: busy || !server.HasRuntime}).FillWidth()
+			if anchor.Clicked() {
+				apply()
+			}
+			if running {
+				restart := ui.ButtonBase(c).Height(20).Center().Radius(6).Label("重启并应用").Disabled(busy).
+					Transition(kit.HoverMotion)
+				restart.Children(func() {
+					ui.Text(c, "重启并应用").FontSize(kit.FontCaption).TextColor(k.Label2).SingleLine()
+				})
+				kit.Hint(c, restart, "重启核心服务以应用全部更改")
+				if restart.Clicked() {
+					w.reload()
 				}
-			})
-		})
-		ui.Row(c).Gap(8).Shrink(0).Children(func() {
-			if !running {
-				kit.Button(c, "应用并启动", kit.ButtonOptions{Variant: kit.Primary, Disabled: busy || !server.HasRuntime}).OnClick(w.toggle)
-				return
 			}
-			kit.Button(c, "重启并应用", kit.ButtonOptions{Disabled: busy, Hint: "重启核心服务以应用全部更改"}).OnClick(w.reload)
-			live := kit.Button(c, "不停机应用", kit.ButtonOptions{Variant: kit.Primary, Disabled: busy, Hint: "保持现有连接，直接更新路由、出站与 DNS"})
-			if live.Clicked() {
-				w.applyLive()
-			}
-			kit.ConfirmPopover(c, live, &a.restart, kit.ConfirmOptions{
-				Title: "需要重启核心", Message: a.reason, Confirm: "重启并应用",
-				Run: func(done func(error)) { w.reloadThen(done) },
-			})
 		})
+	}
+	kit.ConfirmPopover(c, anchor, &w.apply.restart, kit.ConfirmOptions{
+		Title: "需要重启核心", Message: w.apply.reason, Confirm: "重启并应用",
+		Run: func(done func(error)) { w.reloadThen(done) },
 	})
 }
 
@@ -188,9 +122,39 @@ func (w *Workspace) applyLive() {
 func liveAppliedMessage(outcome store.InterruptResult) string {
 	switch {
 	case outcome.Error != "":
-		return "已不停机应用，中断连接失败：" + outcome.Error
+		return "已应用，中断连接失败：" + outcome.Error
 	case outcome.Closed > 0:
-		return fmt.Sprintf("已不停机应用，已中断 %d 条连接", outcome.Closed)
+		return fmt.Sprintf("已应用，已中断 %d 条连接", outcome.Closed)
 	}
-	return "已不停机应用"
+	return "已应用"
+}
+
+// foldedApply is the folded sidebar's apply entry: an Apply button
+// carrying the count of changes, its hint naming them.
+func (w *Workspace) foldedApply(c *ui.Context, label, count, parts string, disabled, busy bool, apply func()) ui.Element {
+	k := kit.T(c)
+	changes := w.unapplied()
+	b := ui.ButtonBase(c.Key("sidebar-apply")).Size(40, 40).Radius(10).Center().Background(k.Accent).
+		TextColor(k.OnAccent).Label(label + " " + count).Disabled(disabled).Transition(kit.HoverMotion)
+	if b.Pressed() {
+		b.Opacity(0.75)
+	}
+	b.Children(func() {
+		if busy {
+			kit.SpinnerIn(c, 16, k.OnAccent)
+		} else {
+			kit.Icon(c, kit.SymArrowUp, 18)
+		}
+		badge := ui.Box(c).Absolute().Top(-5).Right(-5).MinWidth(16).Height(16).PaddingX(4).Radius(8).
+			Background(k.Label).Border(1.5, k.Sidebar).Center()
+		badge.Children(func() {
+			ui.Text(c, fmt.Sprint(changes.Count())).FontSize(10).FontWeight(700).TextColor(k.Surface).
+				FontFeatures("tnum").SingleLine()
+		})
+	})
+	kit.Hint(c, b, label+"："+parts)
+	if b.Clicked() {
+		apply()
+	}
+	return b
 }
