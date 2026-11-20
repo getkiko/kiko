@@ -322,7 +322,7 @@ const BurrowType = "burrow"
 const legacyBurrowType = "holepunch"
 
 func fillDefaults(input *Doc, inferIPv6 bool) *Doc {
-	doc := MigrateDNSDetours(MigrateWireGuardOutbounds(input))
+	doc := MigrateProxyChains(MigrateDNSDetours(MigrateWireGuardOutbounds(input)))
 	if doc == input {
 		doc = Clone(input)
 	}

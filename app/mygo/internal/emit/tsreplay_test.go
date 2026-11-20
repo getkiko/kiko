@@ -172,7 +172,8 @@ var emitFixes = []tsgolden.Fix{{
 			}
 		}
 		for _, e := range result.Errors {
-			if strings.Contains(e, "的前置代理") {
+			// Detours became proxy chains: the error names the hop.
+			if strings.Contains(e, "的前置代理") || strings.Contains(e, "的代理链第") {
 				return ""
 			}
 		}

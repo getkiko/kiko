@@ -78,6 +78,9 @@ type Endpoint struct {
 	Kind   string `json:"kind"` // "endpoint"
 	Type   string `json:"type"`
 	Fields Fields `json:"fields"`
+	// Chain is the proxy chain the endpoint dials through, as an
+	// outbound's Chain.
+	Chain []string `json:"chain,omitempty"`
 }
 
 // Service is a top-level service (USB/IP).
@@ -101,6 +104,11 @@ type Outbound struct {
 	Filter *GroupFilter `json:"filter,omitempty"`
 	// SubID is the subscription a node came from.
 	SubID string `json:"subId,omitempty"`
+	// Chain is the proxy chain the outbound dials through, ids of
+	// outbounds or endpoints in the order traffic takes them: Chain[0]
+	// is the hop nearest this host, the outbound itself comes after the
+	// last. It replaces the former detour field (MigrateProxyChains).
+	Chain []string `json:"chain,omitempty"`
 }
 
 // Traffic is a subscription's usage from its response headers.
@@ -123,8 +131,13 @@ type Subscription struct {
 	NamePrefix string   `json:"namePrefix,omitempty"`
 	Raw        string   `json:"raw,omitempty"`
 	UpdatedAt  int64    `json:"updatedAt,omitempty"`
-	Detour     Ref      `json:"detour,omitzero"`
-	LastError  string   `json:"lastError,omitempty"`
+	// Detour is the former one-hop chain of every node, moved to Chain
+	// by MigrateProxyChains.
+	Detour Ref `json:"detour,omitzero"`
+	// Chain is the proxy chain every node of the subscription dials
+	// through.
+	Chain     []string `json:"chain,omitempty"`
+	LastError string   `json:"lastError,omitempty"`
 }
 
 // UnmarshalJSON defaults Enabled to true, as fillDefaults does.

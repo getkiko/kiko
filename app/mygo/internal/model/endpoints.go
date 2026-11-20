@@ -1,6 +1,7 @@
 package model
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/getkiko/kiko/app/mygo/internal/schema/jsv"
@@ -61,7 +62,7 @@ func WireguardOutboundToEndpoint(outbound *Outbound) *Endpoint {
 			entity.NetworkConfigRefs[slot] = id
 		}
 	}
-	return &Endpoint{Entity: entity, Kind: "endpoint", Type: "wireguard", Fields: fields}
+	return &Endpoint{Entity: entity, Kind: "endpoint", Type: "wireguard", Fields: fields, Chain: slices.Clone(outbound.Chain)}
 }
 
 // MigrateWireGuardOutbounds moves WireGuard outbounds that do not come

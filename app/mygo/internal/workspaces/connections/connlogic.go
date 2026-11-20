@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/getkiko/kiko/app/mygo/internal/api"
+	"github.com/getkiko/kiko/app/mygo/internal/emit"
 	"github.com/getkiko/kiko/app/mygo/internal/mitmpolicy"
 	"github.com/getkiko/kiko/app/mygo/internal/timefmt"
 	"golang.org/x/text/collate"
@@ -159,7 +160,9 @@ func connectionPath(c *api.Connection, detours, selected map[string]string) []ho
 		if next == "" || seen[next] {
 			break
 		}
-		path = append(path, hop{Tag: next, Role: hopDetour})
+		// A hop of a chain of several is a copy of it; it shows as the hop.
+		name, _ := emit.ChainCopyHop(next)
+		path = append(path, hop{Tag: name, Role: hopDetour})
 		seen[next] = true
 		last = next
 		if member := selected[next]; member != "" && !seen[member] {

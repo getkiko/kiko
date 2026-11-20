@@ -136,7 +136,18 @@ func HasInvalidOutboundReferences(doc *Doc, outbound *Outbound, library []*Netwo
 			}
 		}
 	}
-	return hasInvalidSchemaReferences(doc, table, outbound.Fields)
+	return chainBroken(doc, outbound.Chain) || hasInvalidSchemaReferences(doc, table, outbound.Fields)
+}
+
+// chainBroken reports a proxy chain with a hop that is deleted or
+// disabled.
+func chainBroken(doc *Doc, chain []string) bool {
+	for _, id := range chain {
+		if !IsOutboundUsable(doc, id) {
+			return true
+		}
+	}
+	return false
 }
 
 // HasInvalidEndpointReferences reports broken references of an endpoint.
@@ -144,7 +155,7 @@ func HasInvalidEndpointReferences(doc *Doc, endpoint *Endpoint, library []*Netwo
 	table := schema.EndpointSchema[endpoint.Type]
 	return IsExtraTailscale(doc, endpoint) ||
 		len(NetworkReferenceErrors(table, endpoint.NetworkConfigRefs, library, endpoint.Tag)) > 0 ||
-		hasInvalidSchemaReferences(doc, table, endpoint.Fields)
+		chainBroken(doc, endpoint.Chain) || hasInvalidSchemaReferences(doc, table, endpoint.Fields)
 }
 
 // HasInvalidServiceReferences reports broken references of a service.
@@ -238,10 +249,11 @@ func HasInvalidDNSRuleReference(doc *Doc, rule *DNSRule) bool {
 	return rule.ConditionTree != nil || rule.CatchAll || matchHasCondition(rule.Match)
 }
 
-// HasInvalidSubscriptionReferences reports a subscription whose detour is
-// not usable.
+// HasInvalidSubscriptionReferences reports a subscription whose proxy
+// chain has a hop that is not usable.
 func HasInvalidSubscriptionReferences(doc *Doc, subscription *Subscription) bool {
-	return subscription.Detour.Valid() && !IsOutboundUsable(doc, subscription.Detour.ID())
+	return chainBroken(doc, subscription.Chain) ||
+		subscription.Detour.Valid() && !IsOutboundUsable(doc, subscription.Detour.ID())
 }
 
 func hasInvalidRuleSetTag(doc *Doc, value any) bool {

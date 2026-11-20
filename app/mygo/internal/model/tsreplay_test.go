@@ -22,6 +22,49 @@ func TestTypeScriptParity(t *testing.T) {
 }
 
 var modelFixes = []tsgolden.Fix{{
+	Bug: "store-pure.ts keeps a single detour field; Go moves it into the proxy chain (MigrateProxyChains), " +
+		"which the emitter turns back into the same detour",
+	Fn:    "store-pure.fillDefaults",
+	Match: func(c tsgolden.Call) bool { return recordedDetours(c.R) },
+	Want: func(c tsgolden.Call, _ any) json.RawMessage {
+		var want map[string]any
+		if json.Unmarshal(c.R, &want) != nil {
+			return c.R
+		}
+		for _, section := range []string{"outbounds", "endpoints"} {
+			takes := model.OutboundTakesChain
+			if section == "endpoints" {
+				takes = model.EndpointTakesChain
+			}
+			items, _ := want[section].([]any)
+			for _, item := range items {
+				e, _ := item.(map[string]any)
+				fields, _ := e["fields"].(map[string]any)
+				detour, has := fields["detour"]
+				if !has {
+					continue
+				}
+				delete(fields, "detour")
+				typ, _ := e["type"].(string)
+				if id, _ := detour.(string); id != "" && e["chain"] == nil && takes(typ) {
+					e["chain"] = []any{id}
+				}
+			}
+		}
+		subscriptions, _ := want["subscriptions"].([]any)
+		for _, item := range subscriptions {
+			s, _ := item.(map[string]any)
+			if detour, has := s["detour"]; has {
+				delete(s, "detour")
+				if id, _ := detour.(string); id != "" && s["chain"] == nil {
+					s["chain"] = []any{id}
+				}
+			}
+		}
+		raw, _ := json.Marshal(want)
+		return raw
+	},
+}, {
 	Bug: "store-pure.ts keeps the Tailscale endpoint's tag; Go keeps one Tailscale endpoint with the fixed tag " +
 		"Tailscale (2d21d9c), so completing a document renames it, references going by ID",
 	Fn: "store-pure.fillDefaults",
@@ -691,4 +734,33 @@ var modelAdapters = map[string]tsgolden.Adapter{
 	"store-pure.makeService": func(c tsgolden.Call) (any, error) {
 		return model.MakeService(arg[string](c, 0), arg[string](c, 1)), nil
 	},
+}
+
+// recordedDetours reports a recorded document with a detour of the kind
+// MigrateProxyChains moves into a chain.
+func recordedDetours(raw json.RawMessage) bool {
+	var doc struct {
+		Outbounds     []struct{ Fields map[string]any } `json:"outbounds"`
+		Endpoints     []struct{ Fields map[string]any } `json:"endpoints"`
+		Subscriptions []map[string]any                  `json:"subscriptions"`
+	}
+	if json.Unmarshal(raw, &doc) != nil {
+		return false
+	}
+	for _, o := range doc.Outbounds {
+		if _, ok := o.Fields["detour"]; ok {
+			return true
+		}
+	}
+	for _, e := range doc.Endpoints {
+		if _, ok := e.Fields["detour"]; ok {
+			return true
+		}
+	}
+	for _, s := range doc.Subscriptions {
+		if _, ok := s["detour"]; ok {
+			return true
+		}
+	}
+	return false
 }

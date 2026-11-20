@@ -70,7 +70,7 @@ func (p *TailscalePanel) qualifying() *model.Endpoint {
 		model.HasInvalidEndpointReferences(doc, endpoint, p.s.store.NetworkConfigs()) {
 		return nil
 	}
-	if problem, _ := udpPathIssues(doc, endpoint.Fields); problem != "" {
+	if problem, _ := udpPathIssues(doc, endpoint.Fields, endpoint.Chain); problem != "" {
 		return nil
 	}
 	return endpoint

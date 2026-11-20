@@ -208,8 +208,8 @@ func TestEmitUnavailableDetoursAreErrors(t *testing.T) {
 	d.Route.DefaultHTTPClient = model.Some("hc-off")
 	r := emit.Emit(d, emit.Options{})
 	for _, want := range []string{
-		"出站「链式」的前置代理「停用」不可用，请启用它或重新选择",
-		"出站「链式2」的前置代理已删除，请重新选择",
+		"出站「链式」的代理链第 1 跳「停用」不可用，请启用它或重新选择",
+		"出站「链式2」的代理链第 1 跳已删除，请重新选择",
 		"HTTP 客户端「客户端」的前置代理「停用」不可用，请启用它或重新选择",
 		"路由默认的 HTTP 客户端「停用客户端」已停用，请启用它或重新选择",
 	} {

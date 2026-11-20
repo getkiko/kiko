@@ -132,10 +132,10 @@ func udpPathPeerSuggestions(status *api.TailscaleStatus, query string, taken []s
 	return out
 }
 
-// udpPathIssues checks a Tailscale endpoint's UDP path against its
-// detour: a blocking problem, and notes to show beside the setting. Rules
+// udpPathIssues checks a Tailscale endpoint's UDP path against its proxy
+// chain: a blocking problem, and notes to show beside the setting. Rules
 // without a peer name are ignored, as emit drops them.
-func udpPathIssues(doc *model.Doc, fields model.Fields) (problem string, notes []string) {
+func udpPathIssues(doc *model.Doc, fields model.Fields, chain []string) (problem string, notes []string) {
 	defaultPath := jsv.Text(fields["udp_path.default"])
 	rules := slices.DeleteFunc(udpPathRules(fields[udpPathPeersKey]), func(r udpPathRule) bool { return len(r.match) == 0 })
 	configured := defaultPath != "" || len(rules) > 0
@@ -143,16 +143,18 @@ func udpPathIssues(doc *model.Doc, fields model.Fields) (problem string, notes [
 		return "", nil
 	}
 	usesDetour := defaultPath == "detour" || slices.ContainsFunc(rules, func(r udpPathRule) bool { return r.path == "detour" })
-	detour := ""
-	if jsv.Truthy(fields["detour"]) {
-		detour = jsv.String(fields["detour"])
-	}
 	switch {
-	case usesDetour && detour == "":
-		problem = "UDP 路径「经代理」需要先设置前置代理"
+	case usesDetour && len(chain) == 0:
+		problem = "UDP 路径「经代理」需要先设置代理链"
 	case usesDetour:
-		for _, tag := range destinationBoundUDP(doc, detour, map[string]bool{}) {
-			notes = append(notes, "「"+tag+"」按目的地绑定 UDP，需 xudp 或 packetaddr 封包编码")
+		seen := map[string]bool{}
+		for _, hop := range chain {
+			for _, tag := range destinationBoundUDP(doc, hop, seen) {
+				notes = append(notes, "「"+tag+"」按目的地绑定 UDP，需 xudp 或 packetaddr 封包编码")
+			}
+		}
+		if hops := model.ChainWithoutUDP(doc, chain); len(hops) > 0 {
+			problem = "UDP 路径「经代理」需要转发 UDP 的代理链，「" + strings.Join(hops, "」「") + "」不转发 UDP"
 		}
 	default:
 		notes = append(notes, "未使用「经代理」，UDP 路径不生效")
@@ -300,7 +302,7 @@ func (u *udpPathField) view(c *ui.Context, s *Section, doc *model.Doc, endpoint 
 				})
 			})
 		}
-		problem, notes := udpPathIssues(doc, effective)
+		problem, notes := udpPathIssues(doc, effective, endpoint.Chain)
 		if problem != "" {
 			note(c, kit.DangerTone, problem)
 		}

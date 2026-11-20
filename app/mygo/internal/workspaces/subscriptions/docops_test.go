@@ -10,7 +10,7 @@ import (
 
 func nodesDoc() *model.Doc {
 	doc := model.EmptyDoc("linux")
-	sub := &model.Subscription{ID: "s1", Tag: "S", NamePrefix: "P-", Detour: model.Some("out_d"), Enabled: true}
+	sub := &model.Subscription{ID: "s1", Tag: "S", NamePrefix: "P-", Chain: []string{"out_d"}, Enabled: true}
 	doc.Subscriptions = []*model.Subscription{sub}
 	keep := outboundOf("out_keep", "trojan", "P-keep", model.Fields{"__key": "trojan|k.example|443|pw", "__subscription_name": "keep"})
 	keep.SubID, keep.Enabled = "s1", false
@@ -37,7 +37,7 @@ func TestApplyNodesKeepsIdentity(t *testing.T) {
 	if len(nodes) != 2 || nodes[0].ID != "out_keep" || nodes[0].Enabled || nodes[0].Tag != "P-keep" {
 		t.Fatalf("kept node %+v", nodes[0])
 	}
-	if nodes[1].Tag != "P-new 2" || nodes[1].Fields["detour"] != "out_d" || nodes[1].Fields["__subscription_name"] != "new" {
+	if nodes[1].Tag != "P-new 2" || !slices.Equal(nodes[1].Chain, []string{"out_d"}) || nodes[1].Fields["__subscription_name"] != "new" {
 		t.Errorf("new node %q %v", nodes[1].Tag, nodes[1].Fields)
 	}
 	for _, o := range doc.Outbounds {
@@ -63,16 +63,29 @@ func TestApplyNodesWithoutNodes(t *testing.T) {
 	}
 }
 
-func TestRetagAndDetour(t *testing.T) {
+func TestRetagAndChain(t *testing.T) {
 	doc := nodesDoc()
 	retagNodes(doc, "s1", "Q-")
 	nodes := subscriptionNodes(doc, "s1")
 	if nodes[0].Tag != "Q-keep" || nodes[1].Tag != "Q-P-gone" {
 		t.Errorf("tags %q %q", nodes[0].Tag, nodes[1].Tag)
 	}
-	setNodesDetour(doc, "s1", "")
-	if _, ok := nodes[0].Fields["detour"]; ok {
-		t.Error("detour kept")
+	nodes[0].Fields["detour"] = "out_taken"
+	setNodesChain(doc, "s1", []string{"out_taken", "out_group"})
+	if _, ok := nodes[0].Fields["detour"]; ok || !slices.Equal(nodes[1].Chain, []string{"out_taken", "out_group"}) {
+		t.Errorf("chain %v, fields %v", nodes[1].Chain, nodes[0].Fields)
+	}
+	setNodesChain(doc, "s1", nil)
+	if nodes[0].Chain != nil {
+		t.Error("chain kept")
+	}
+	// A refresh gives fresh nodes the subscription's chain.
+	findSubscription(doc, "s1").Chain = []string{"out_taken"}
+	applyNodes(doc, "s1", subscription.Result{Nodes: []subscription.Node{
+		{Type: "trojan", Name: "fresh", Key: "trojan|f.example|443|pw", Fields: map[string]any{"server": "f.example"}},
+	}}, 0, nil, 2)
+	if got := subscriptionNodes(doc, "s1"); len(got) != 1 || !slices.Equal(got[0].Chain, []string{"out_taken"}) {
+		t.Fatalf("refreshed %v", got)
 	}
 }
 

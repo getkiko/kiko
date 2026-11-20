@@ -116,6 +116,12 @@ func DNSDetourError(doc *Doc, id string) string {
 				pending = append(pending, jsv.String(dependency))
 			}
 		}
+		// Every hop of the proxy chain carries the query too.
+		if t.outbound != nil {
+			pending = append(pending, t.outbound.Chain...)
+		} else {
+			pending = append(pending, t.endpoint.Chain...)
+		}
 	}
 	return ""
 }

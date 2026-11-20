@@ -107,6 +107,8 @@ type emitter struct {
 	// not emitted, so nothing may reference their tags.
 	// The value is the group's claimed tag, for messages.
 	emptyGroups map[string]string
+	// chain holds the copies proxy chains emit (chain.go).
+	chain       chainState
 	outbounds   []any
 	endpoints   []any
 	rsTags      orderedSet
@@ -204,7 +206,7 @@ func (e *emitter) resolveDNS(id, detour string) (string, bool) {
 
 // Emit builds the sing-box configuration of doc.
 func Emit(doc *model.Doc, options Options) Result {
-	expanded, expandErrors := model.ExpandNetworkDoc(model.MigrateDNSDetours(doc), options.NetworkConfigs)
+	expanded, expandErrors := model.ExpandNetworkDoc(model.MigrateProxyChains(model.MigrateDNSDetours(doc)), options.NetworkConfigs)
 	expanded, moduleIssues := sanitizeModules(expanded)
 	e := &emitter{
 		doc: expanded, options: options, errors: append([]string{}, expandErrors...),
@@ -516,9 +518,7 @@ func (e *emitter) emitOutbounds() {
 		if !ok {
 			tag = e.emptyGroups[ob.ID]
 		}
-		o := obj("type", ob.Type, "tag", tag)
-		applyFields(o, ob.Fields, schema.OutboundSchema[ob.Type], e.resolve, e.platform, e.noteSkip("出站「"+tag+"」"), nil, e.resolveDNS)
-		postProcessOutbound(ob.Type, o, ob.Fields)
+		o := e.outboundObject(ob, tag, "出站「"+tag+"」")
 		if ob.Type == "wireguard" {
 			e.warnings = append(e.warnings, "WireGuard 出站「"+tag+"」已在 sing-box 1.13 移除，请改用 WireGuard endpoint")
 		}
@@ -544,14 +544,14 @@ func (e *emitter) emitOutbounds() {
 					o.set("default", d)
 				}
 			}
-		} else if jsv.Truthy(ob.Fields["detour"]) {
-			if _, ok := e.resolve(idOf(ob.Fields["detour"])); !ok {
-				o.del("detour")
-				e.errors = append(e.errors, e.detourError("出站「"+tag+"」", idOf(ob.Fields["detour"])))
-			}
+		} else if !model.OutboundTakesChain(ob.Type) {
+			// A type without a detour has no chain to dial through.
+		} else if detour, ok := e.chainDetour("出站「"+tag+"」", ob.Chain); ok && detour != "" {
+			o.set("detour", detour)
 		}
 		e.outbounds = append(e.outbounds, prune(o))
 	}
+	e.flushChainCopies()
 	if e.outbounds == nil {
 		e.outbounds = []any{}
 	}
@@ -562,15 +562,16 @@ func (e *emitter) emitEndpoints() {
 		tag := e.tagOf[ep.ID]
 		o := obj("type", ep.Type, "tag", tag)
 		applyFields(o, ep.Fields, schema.EndpointSchema[ep.Type], e.resolve, e.platform, e.noteSkip("Endpoint「"+tag+"」"), nil, e.resolveDNS)
-		postProcessEndpoint(ep.Type, o, ep.Fields, &e.warnings)
-		if jsv.Truthy(ep.Fields["detour"]) {
-			if _, ok := e.resolve(idOf(ep.Fields["detour"])); !ok {
-				o.del("detour")
-				e.errors = append(e.errors, e.detourError("Endpoint「"+tag+"」", idOf(ep.Fields["detour"])))
-			}
+		o.del("detour")
+		if !model.EndpointTakesChain(ep.Type) {
+			// No detour, no chain.
+		} else if detour, ok := e.chainDetour("Endpoint「"+tag+"」", ep.Chain); ok && detour != "" {
+			o.set("detour", detour)
 		}
+		postProcessEndpoint(ep.Type, o, ep.Fields, &e.warnings)
 		e.endpoints = append(e.endpoints, prune(o))
 	}
+	e.flushChainCopies()
 }
 
 func usbDevices(list []schema.UsbDeviceMatch) []any {

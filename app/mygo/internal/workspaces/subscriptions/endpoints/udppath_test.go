@@ -58,33 +58,33 @@ func TestUDPPathIssues(t *testing.T) {
 	has := func(notes []string, part string) bool {
 		return slices.ContainsFunc(notes, func(n string) bool { return strings.Contains(n, part) })
 	}
-	if problem, notes := udpPathIssues(doc, model.Fields{}); problem != "" || len(notes) != 0 {
+	if problem, notes := udpPathIssues(doc, model.Fields{}, nil); problem != "" || len(notes) != 0 {
 		t.Fatalf("unset: %q %v", problem, notes)
 	}
-	if problem, _ := udpPathIssues(doc, model.Fields{"udp_path.default": "detour"}); problem == "" {
+	if problem, _ := udpPathIssues(doc, model.Fields{"udp_path.default": "detour"}, nil); problem == "" {
 		t.Fatal("detour without 前置代理 must be an error")
 	}
-	if problem, _ := udpPathIssues(doc, model.Fields{"udp_path.peers": []any{map[string]any{"match": []any{"nas"}, "path": "detour"}}}); problem == "" {
+	if problem, _ := udpPathIssues(doc, model.Fields{"udp_path.peers": []any{map[string]any{"match": []any{"nas"}, "path": "detour"}}}, nil); problem == "" {
 		t.Fatal("a detour rule without 前置代理 must be an error")
 	}
-	if problem, notes := udpPathIssues(doc, model.Fields{"udp_path.default": "detour", "detour": "vm"}); problem != "" || !has(notes, "「vm」按目的地绑定 UDP") {
+	if problem, notes := udpPathIssues(doc, model.Fields{"udp_path.default": "detour"}, []string{"vm"}); problem != "" || !has(notes, "「vm」按目的地绑定 UDP") {
 		t.Fatalf("vmess: %q %v", problem, notes)
 	}
-	if problem, notes := udpPathIssues(doc, model.Fields{"udp_path.default": "detour", "detour": "pick"}); problem != "" || len(notes) != 1 || !has(notes, "「vm」按目的地绑定 UDP") {
+	if problem, notes := udpPathIssues(doc, model.Fields{"udp_path.default": "detour"}, []string{"pick"}); problem != "" || len(notes) != 1 || !has(notes, "「vm」按目的地绑定 UDP") {
 		t.Fatalf("group member: %q %v", problem, notes)
 	}
-	if problem, _ := udpPathIssues(doc, model.Fields{"udp_path.peers": []any{map[string]any{"match": []any{" "}, "path": "detour"}}}); problem != "" {
+	if problem, _ := udpPathIssues(doc, model.Fields{"udp_path.peers": []any{map[string]any{"match": []any{" "}, "path": "detour"}}}, nil); problem != "" {
 		t.Fatal("a rule without a peer name is ignored")
 	}
 	for _, detour := range []string{"vmx", "ss", "safe"} {
-		if problem, notes := udpPathIssues(doc, model.Fields{"udp_path.default": "detour", "detour": detour}); problem != "" || len(notes) != 0 {
+		if problem, notes := udpPathIssues(doc, model.Fields{"udp_path.default": "detour"}, []string{detour}); problem != "" || len(notes) != 0 {
 			t.Fatalf("%s: %q %v", detour, problem, notes)
 		}
 	}
-	if _, notes := udpPathIssues(doc, model.Fields{"udp_path.default": "detour", "detour": "ss", "disable_udp_direct": true}); !has(notes, "禁用 UDP 直连") {
+	if _, notes := udpPathIssues(doc, model.Fields{"udp_path.default": "detour", "disable_udp_direct": true}, []string{"ss"}); !has(notes, "禁用 UDP 直连") {
 		t.Fatalf("disable_udp_direct: %v", notes)
 	}
-	if _, notes := udpPathIssues(doc, model.Fields{"udp_path.default": "relay"}); !has(notes, "不生效") {
+	if _, notes := udpPathIssues(doc, model.Fields{"udp_path.default": "relay"}, nil); !has(notes, "不生效") {
 		t.Fatalf("without detour path: %v", notes)
 	}
 }

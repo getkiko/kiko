@@ -224,6 +224,13 @@ func (e *editor) save(doc *model.Doc) {
 		e.s.env.Toast(model.TailscaleLimitMessage)
 		return
 	}
+	if e.endpoint != nil && model.EndpointTakesChain(e.endpoint.Type) {
+		if issue, ok := model.ChainError(e.editDoc(doc), []string{e.endpoint.ID}, e.endpoint.Chain); !ok {
+			e.s.env.Toast("代理链：" + issue.Message)
+			return
+		}
+		delete(e.endpoint.Fields, "detour")
+	}
 	full := e.fullSchema()
 	effective := model.EffectiveNetworkFields(full, fields, refs, library, platform)
 	if errors := schema.FormValidationErrors(withoutDevices(full), effective, platform); len(errors) > 0 {
@@ -231,7 +238,7 @@ func (e *editor) save(doc *model.Doc) {
 		return
 	}
 	if e.endpoint != nil && e.endpoint.Type == "tailscale" {
-		if problem, _ := udpPathIssues(e.editDoc(doc), effective); problem != "" {
+		if problem, _ := udpPathIssues(e.editDoc(doc), effective, e.endpoint.Chain); problem != "" {
 			e.s.env.Toast(problem)
 			return
 		}
@@ -367,7 +374,7 @@ func (e *editor) form(c *ui.Context, doc *model.Doc) {
 		if endpoint.Fields == nil {
 			endpoint.Fields = model.Fields{}
 		}
-		fields = schema.EndpointSchema[endpoint.Type]
+		fields = forms.WithoutDetour(schema.EndpointSchema[endpoint.Type])
 		values, refs, tag, exclude = endpoint.Fields, endpoint.NetworkConfigRefs, &endpoint.Tag, endpoint.ID
 		setRefs = func(r model.NetworkConfigRefs) { endpoint.NetworkConfigRefs = r }
 		if endpoint.Type == "tailscale" {
@@ -391,6 +398,15 @@ func (e *editor) form(c *ui.Context, doc *model.Doc) {
 			trailing = func() {
 				effective := model.EffectiveNetworkFields(full, endpoint.Fields, endpoint.NetworkConfigRefs, e.s.store.NetworkConfigs(), platform)
 				e.udpPath.view(c, e.s, editDoc, endpoint, effective)
+			}
+		}
+	}
+	if e.endpoint != nil && model.EndpointTakesChain(e.endpoint.Type) {
+		endpoint, more := e.endpoint, trailing
+		trailing = func() {
+			forms.ChainEditor(c, "chain", editDoc, &endpoint.Chain, []string{endpoint.ID}, "本端点")
+			if more != nil {
+				more()
 			}
 		}
 	}

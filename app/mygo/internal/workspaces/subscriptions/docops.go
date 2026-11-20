@@ -160,20 +160,18 @@ func retagNodes(doc *model.Doc, subID, prefix string) {
 	}
 }
 
-// setNodesDetour applies a subscription's detour to all its nodes; an
-// empty id removes it.
-func setNodesDetour(doc *model.Doc, subID, detour string) {
+// setNodesChain applies a subscription's proxy chain to all its nodes;
+// an empty chain removes it.
+func setNodesChain(doc *model.Doc, subID string, chain []string) {
 	for _, o := range doc.Outbounds {
 		if o.SubID != subID {
 			continue
 		}
-		if o.Fields == nil {
-			o.Fields = model.Fields{}
-		}
-		if detour == "" {
-			delete(o.Fields, "detour")
+		delete(o.Fields, "detour")
+		if len(chain) == 0 || !model.OutboundTakesChain(o.Type) {
+			o.Chain = nil
 		} else {
-			o.Fields["detour"] = detour
+			o.Chain = slices.Clone(chain)
 		}
 	}
 }
@@ -224,11 +222,11 @@ func applyNodes(doc *model.Doc, subID string, result subscription.Result, conver
 			}
 			fields["__key"] = node.Key
 			fields["__subscription_name"] = node.Name
-			if sub.Detour.Valid() {
-				fields["detour"] = sub.Detour.ID()
-			}
 			o := &model.Outbound{Entity: model.Entity{ID: model.NewID("out"), Tag: tag, Enabled: true},
 				Kind: "outbound", Type: node.Type, SubID: subID, Fields: fields}
+			if len(sub.Chain) > 0 && model.OutboundTakesChain(node.Type) {
+				o.Chain = slices.Clone(sub.Chain)
+			}
 			if prev != nil {
 				o.ID, o.Enabled, o.NetworkConfigRefs = prev.ID, prev.Enabled, prev.NetworkConfigRefs
 			}

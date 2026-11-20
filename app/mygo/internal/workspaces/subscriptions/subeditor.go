@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -35,9 +36,9 @@ type subEditor struct {
 	// how many nodes the subscription then has.
 	fetched *fetchOutcome
 	nodes   int
-	// prefix and detour are the document's, to know what saving changes.
-	prefix, detour string
-	detourValue    string
+	// prefix and chain are the document's, to know what saving changes.
+	prefix string
+	chain  []string
 
 	busy    bool
 	msg     string
@@ -51,7 +52,7 @@ func (e *subEditor) openAdd(doc *model.Doc) {
 	e.reset()
 	e.open, e.add = true, true
 	e.draft = model.Subscription{ID: model.NewID("sub"), Tag: fmt.Sprintf("订阅 %d", len(doc.Subscriptions)+1), Enabled: true}
-	e.detourValue = ""
+	e.chain = nil
 	e.w.store.BeginEdit()
 }
 
@@ -64,8 +65,7 @@ func (e *subEditor) openEdit(doc *model.Doc, id string) {
 	e.reset()
 	e.open, e.add = true, false
 	e.draft = model.Clone(*sub)
-	e.prefix, e.detour = sub.NamePrefix, sub.Detour.ID()
-	e.detourValue = e.detour
+	e.prefix, e.chain = sub.NamePrefix, slices.Clone(sub.Chain)
 	e.w.store.BeginEdit()
 }
 
@@ -95,15 +95,11 @@ func (e *subEditor) close() {
 
 // write puts the draft into doc: a new subscription is added, an existing
 // one takes the draft's fields, renaming its nodes for a new prefix and
-// moving them to a new detour.
+// moving them to a new proxy chain.
 func (e *subEditor) write(doc *model.Doc) {
 	draft := e.draft
 	draft.Tag = strings.TrimSpace(draft.Tag)
-	if e.detourValue == "" {
-		draft.Detour = model.Null()
-	} else {
-		draft.Detour = model.Some(e.detourValue)
-	}
+	draft.Chain, draft.Detour = slices.Clone(draft.Chain), model.Ref{}
 	sub := findSubscription(doc, draft.ID)
 	if sub == nil {
 		copied := draft
@@ -111,13 +107,13 @@ func (e *subEditor) write(doc *model.Doc) {
 		sub = &copied
 	} else {
 		sub.Tag, sub.URL, sub.UserAgent = draft.Tag, draft.URL, draft.UserAgent
-		sub.NamePrefix, sub.Detour = draft.NamePrefix, draft.Detour
+		sub.NamePrefix, sub.Chain, sub.Detour = draft.NamePrefix, draft.Chain, model.Ref{}
 		sub.Raw, sub.Traffic, sub.UpdatedAt = draft.Raw, draft.Traffic, draft.UpdatedAt
 		if draft.NamePrefix != e.prefix {
 			retagNodes(doc, sub.ID, draft.NamePrefix)
 		}
-		if e.detourValue != e.detour {
-			setNodesDetour(doc, sub.ID, e.detourValue)
+		if !slices.Equal(draft.Chain, e.chain) {
+			setNodesChain(doc, sub.ID, draft.Chain)
 		}
 	}
 	if e.fetched != nil {
@@ -129,7 +125,7 @@ func (e *subEditor) write(doc *model.Doc) {
 // committed records that the document now has the draft.
 func (e *subEditor) committed() {
 	e.fetched = nil
-	e.prefix, e.detour = e.draft.NamePrefix, e.detourValue
+	e.prefix, e.chain = e.draft.NamePrefix, slices.Clone(e.draft.Chain)
 }
 
 func (e *subEditor) save() {
@@ -143,6 +139,15 @@ func (e *subEditor) save() {
 	}
 	if u, err := url.Parse(strings.TrimSpace(e.draft.URL)); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		e.w.env.Toast("请输入有效的 HTTP(S) 订阅链接")
+		return
+	}
+	doc := e.w.store.Doc()
+	var owners []string
+	for _, o := range subscriptionNodes(doc, e.draft.ID) {
+		owners = append(owners, o.ID)
+	}
+	if issue, ok := model.ChainError(doc, owners, e.draft.Chain); !ok {
+		e.w.env.Toast("代理链：" + issue.Message)
 		return
 	}
 	if !e.w.update(e.write) {
@@ -265,24 +270,12 @@ func (e *subEditor) view(c *ui.Context) {
 				fieldLabel(c, "统一前缀")
 				kit.Input(c, "prefix", &e.draft.NamePrefix, "例如 tass-").Label("统一前缀")
 			})
-			ui.Column(c).Gap(5).MinWidth(0).Children(func() {
-				ui.Row(c).Gap(4).Children(func() {
-					fieldLabel(c, "统一前置代理 detour")
-					fieldLabel(c, "· 应用到全部节点")
-				})
-				exclude := make([]string, len(nodes))
-				for i, o := range nodes {
-					exclude[i] = o.ID
-				}
-				options := []kit.Option{{Value: "", Label: "（无）"}}
-				for _, o := range forms.OutboundOptions(doc, exclude...) {
-					if !strings.HasSuffix(o.Detail, "已关闭") {
-						options = append(options, o)
-					}
-				}
-				kit.Select(c, "detour", &e.detourValue, options, kit.SelectOptions{Label: "统一前置代理 detour"})
-			})
 		})
+		owners := make([]string, len(nodes))
+		for i, o := range nodes {
+			owners[i] = o.ID
+		}
+		forms.ChainEditor(c, "chain", doc, &e.draft.Chain, owners, "各节点")
 		ui.Column(c).Gap(5).Shrink(0).Children(func() {
 			fieldLabel(c, "订阅链接")
 			ui.Row(c).Gap(8).Children(func() {

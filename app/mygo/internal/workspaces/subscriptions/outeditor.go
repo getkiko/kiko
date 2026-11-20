@@ -130,7 +130,13 @@ func (e *outEditor) save() {
 			return
 		}
 	}
-	table := schema.Fields(schema.KindOutbound, o.Type)
+	if model.OutboundTakesChain(o.Type) {
+		if issue, ok := model.ChainError(doc, []string{o.ID}, o.Chain); !ok {
+			e.w.env.Toast("代理链：" + issue.Message)
+			return
+		}
+	}
+	table := forms.WithoutDetour(schema.Fields(schema.KindOutbound, o.Type))
 	platform := doc.Platform
 	if platform == "" {
 		platform = "linux"
@@ -147,6 +153,10 @@ func (e *outEditor) save() {
 	if model.IsGroup(o.Type) {
 		saved.Filter = filter
 	}
+	if !model.OutboundTakesChain(saved.Type) {
+		saved.Chain = nil
+	}
+	delete(saved.Fields, "detour")
 	// The fields of other modes stay on the draft until the save goes
 	// through, so that a failed save keeps switching back lossless.
 	model.PruneGroupFields(saved)
@@ -205,8 +215,11 @@ func (e *outEditor) view(c *ui.Context) {
 				kit.Input(c, "name", &o.Tag, "").Label("名称")
 			})
 		}
+		if model.OutboundTakesChain(o.Type) {
+			fc.Trailing = func() { forms.ChainEditor(c, "chain", doc, &o.Chain, []string{o.ID}, "本出站") }
+		}
 		fc.OnTextImport = e.importAddress
-		e.form = forms.Form(c, []any{"outbound-form", o.Type, o.ID, e.generation}, schema.Fields(schema.KindOutbound, o.Type), o.Fields, fc)
+		e.form = forms.Form(c, []any{"outbound-form", o.Type, o.ID, e.generation}, forms.WithoutDetour(schema.Fields(schema.KindOutbound, o.Type)), o.Fields, fc)
 	}, func() {
 		if hasLink {
 			kit.IconButton(c, kit.SymCopy, "复制分享链接", kit.IconButtonOptions{}).OnClick(func() {

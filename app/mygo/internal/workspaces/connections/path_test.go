@@ -25,6 +25,12 @@ func TestConnectionPath(t *testing.T) {
 		t.Fatalf("detail %q", got)
 	}
 
+	// A chain of several hops runs through copies, shown as their hops.
+	chained := map[string]string{"X": "C ⛓1", "C ⛓1": "B ⛓1", "B ⛓1": "A", "C": "Z"}
+	if got := pathText(connectionPath(&api.Connection{Outbound: "X", ChainList: []string{"X"}}, chained, nil)); got != "X → C → B → A" {
+		t.Fatalf("copies %q", got)
+	}
+
 	// Without detours it is the core's chain, reversed.
 	if got := chainName(conn); got != "自选 → 马来西亚服务器" {
 		t.Fatalf("chain %q", got)
