@@ -64,7 +64,7 @@ func (m *connMonitor) detail(c *ui.Context, d *connDerived, row *Row, now time.T
 	case row.Closed():
 		state = "已关闭"
 	}
-	icon := func() { m.connectionIcon(c, d, conn, 40) }
+	icon := func() { m.rowIcon(c, d, conn, 40) }
 	kit.ScrollingInspector(c, hostName(conn), state+" · "+upperOr(conn.Network, "连接"), icon, nil, m.closeInspector, func() {
 		if !row.Closed() {
 			canTerminate := m.loaded && m.streamErr == "" && !m.paused
@@ -255,7 +255,7 @@ func (m *connMonitor) groupDetail(c *ui.Context, group *node, missing bool) {
 	subtitle := fmt.Sprintf("%s 条连接 · %s 个进程", kit.Count(group.Count), kit.Count(group.ProcessCount))
 	icon := func() { m.icons.processIcon(c, groupIcon(group.Process), 40) }
 	if domainGroupKey(group.Key) {
-		icon = func() { domainGroupIcon(c, group.Key == ipGroupKey, 40) }
+		icon = func() { m.domainGroupIcon(c, group.Key, group.Label, 40) }
 	}
 	kit.ScrollingInspector(c, group.Label, subtitle, icon, nil, func() { m.groupDetails = false }, func() {
 		if missing {

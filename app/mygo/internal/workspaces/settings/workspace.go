@@ -82,6 +82,12 @@ type Workspace struct {
 	logBusy    bool
 	logCleanup *api.LogHistory
 	logConfirm kit.ConfirmState
+	// favicons is what the server keeps of the websites' icons, nil until
+	// read; faviconConfirm confirms clearing them.
+	favicons       *api.FaviconCache
+	faviconLoading bool
+	faviconFailed  bool
+	faviconConfirm kit.ConfirmState
 	// logSize is the server's log sizes, nil until loaded (or on a server
 	// without GET /logs/size).
 	logSize     *api.LogSize
@@ -165,6 +171,10 @@ func (w *Workspace) SetActive(active bool) {
 		return
 	}
 	w.active = active
+	if active {
+		// The cache changes as pages show icons: read it anew.
+		w.favicons, w.faviconFailed = nil, false
+	}
 	if !active {
 		w.share.reset()
 		if w.RuleSets != nil {

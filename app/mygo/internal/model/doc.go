@@ -487,6 +487,9 @@ type Doc struct {
 	// outbound's proxy cannot carry: it then goes the way routing sends
 	// it, and pages can learn the real address. Off, WebRTC is disabled.
 	BrowserWebRTC bool `json:"browserWebRTC,omitempty"`
+	// FaviconOutbound is the outbound or endpoint the server fetches the
+	// websites' icons through, for Connections and Usage; unset, none.
+	FaviconOutbound Ref `json:"faviconOutbound,omitzero"`
 	// LatencyPlain turns the unified delay off: latency tests then time
 	// the first HTTPS request of a fresh connection. Unset means unified.
 	LatencyPlain bool       `json:"latencyPlain,omitempty"`

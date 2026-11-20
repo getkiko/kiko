@@ -3,12 +3,15 @@ package connections
 import (
 	"context"
 	"fmt"
+	"net"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/getkiko/kiko/app/mygo/internal/api"
 	"github.com/getkiko/kiko/app/mygo/internal/env"
+	"github.com/getkiko/kiko/app/mygo/internal/favicon"
 	"github.com/getkiko/kiko/app/mygo/internal/kit"
 	"github.com/getkiko/kiko/app/mygo/internal/srcname"
 	"github.com/getkiko/kiko/app/mygo/internal/timefmt"
@@ -392,6 +395,50 @@ func (m *connMonitor) empty(c *ui.Context) {
 	kit.EmptyState(c, kit.SymCable, message, "", nil)
 }
 
+// siteIcon is the website icon of domain, the network glyph of a
+// connection without a domain (to an IP address), the globe of a domain
+// without a public site.
+func (m *connMonitor) siteIcon(c *ui.Context, domain string, size float32) {
+	switch {
+	case domain == "" || net.ParseIP(strings.Trim(domain, "[]")) != nil:
+		domainGroupIcon(c, true, size)
+	case favicon.Root(domain) == "":
+		domainGroupIcon(c, false, size)
+	default:
+		favicon.Site(c, m.env, m.store, domain, size)
+	}
+}
+
+// sites reports whether website icons show; without them a row leads
+// with its process's icon, as before.
+func (m *connMonitor) sites() bool { return favicon.On(m.env, m.store) }
+
+// rowIcon is the icon a connection leads with: its site's, or its
+// process's while website icons are off.
+func (m *connMonitor) rowIcon(c *ui.Context, d *connDerived, conn *api.Connection, size float32) {
+	if m.sites() {
+		m.siteIcon(c, conn.Domain, size)
+		return
+	}
+	m.connectionIcon(c, d, conn, size)
+}
+
+// domainGroupIcon is a domain group's icon: its site's, the network
+// glyph for the IP group.
+func (m *connMonitor) domainGroupIcon(c *ui.Context, key, label string, size float32) {
+	if key == ipGroupKey || !m.sites() {
+		domainGroupIcon(c, key == ipGroupKey, size)
+		return
+	}
+	m.siteIcon(c, label, size)
+}
+
+// hasProcess reports whether a process is known for conn.
+func (m *connMonitor) hasProcess(conn *api.Connection) bool {
+	info := conn.ProcessInfo
+	return info != nil && (info.ProcessID != 0 || info.ProcessPath != "")
+}
+
 // connectionIcon is ConnectionProcessIcon: the process's icon, or a
 // network glyph for a connection without a process.
 func (m *connMonitor) connectionIcon(c *ui.Context, d *connDerived, conn *api.Connection, size float32) {
@@ -447,7 +494,7 @@ func (m *connMonitor) cell(c *ui.Context, d *connDerived, names *srcname.Names, 
 			indent = float32(min(v.Depth, 8))*18 + 26
 		}
 		ui.Row(c).Grow(1).MinWidth(0).Gap(8).PaddingStart(indent).Children(func() {
-			m.connectionIcon(c, d, conn, 28)
+			m.rowIcon(c, d, conn, 28)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 				ui.Row(c).Gap(5).MinWidth(0).Children(func() {
 					protocol := connectionProtocolLabel(conn)
@@ -459,8 +506,14 @@ func (m *connMonitor) cell(c *ui.Context, d *connDerived, names *srcname.Names, 
 					}
 					kit.Clipped(c, hostName(conn), kit.FontTable, 600)
 				})
-				kit.Clipped(c, firstNonEmpty(processName(conn), conn.Protocol, conn.Destination, "未知进程"), kit.FontCaption, 400).
-					TextColor(k.Label3)
+				// The process under the site, its icon before its name.
+				ui.Row(c).Gap(4).MinWidth(0).AlignItems(ui.Center).Children(func() {
+					if m.sites() && m.hasProcess(conn) {
+						m.connectionIcon(c, d, conn, 13)
+					}
+					kit.Clipped(c, firstNonEmpty(processName(conn), conn.Protocol, conn.Destination, "未知进程"), kit.FontCaption, 400).
+						TextColor(k.Label3)
+				})
 			})
 		})
 	case colRule:
@@ -530,7 +583,7 @@ func (m *connMonitor) groupCell(c *ui.Context, v visibleNode, col Column) {
 				m.expanded()[group.Key] = !open
 			}
 			if domainGroupKey(group.Key) {
-				domainGroupIcon(c, group.Key == ipGroupKey, 16)
+				m.domainGroupIcon(c, group.Key, group.Label, 16)
 			} else {
 				m.icons.processIcon(c, groupIcon(group.Process), 16)
 			}

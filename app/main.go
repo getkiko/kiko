@@ -104,7 +104,10 @@ type server struct {
 	systemDNSMu                 sync.Mutex
 	singBox, dataDir, sbVersion string
 	// browsers are the browsers opened through one outbound (browser.go).
-	browsers                  browsers
+	browsers browsers
+	// favicons are the website icons (favicon.go), made on first use.
+	favicons                  *favicons
+	faviconOnce               sync.Once
 	store                     storeState
 	persisted                 persistedRuntime
 	state                     runtimeState
@@ -1779,6 +1782,7 @@ func (s *server) shutdown() {
 		s.mu.Unlock()
 		s.mitmShareStop()
 		s.closeBrowsers()
+		s.faviconService().close()
 		if s.shutdownCh != nil {
 			close(s.shutdownCh)
 		}

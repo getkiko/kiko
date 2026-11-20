@@ -83,3 +83,28 @@ func (c *Client) ProcessIcon(ctx context.Context, pid int, startedAt int64) ([]b
 func (c *Client) ProcessPathIcon(ctx context.Context, path string) ([]byte, error) {
 	return c.Raw(ctx, http.MethodGet, "/process-icon"+Query("path", path))
 }
+
+// Favicon downloads the website icon of domain's root (PNG bytes), the
+// server fetching it through outbound, the tag in the running core: an
+// *Error of status 404 for a site without one.
+func (c *Client) Favicon(ctx context.Context, domain, outbound string) ([]byte, error) {
+	return c.Raw(ctx, http.MethodGet, "/favicon"+Query("domain", domain, "outbound", outbound))
+}
+
+// FaviconCache is the website icons the server keeps.
+type FaviconCache struct {
+	Count int   `json:"count"`
+	Bytes int64 `json:"bytes"`
+}
+
+// FaviconCacheStats counts the website icons the server keeps.
+func (c *Client) FaviconCacheStats(ctx context.Context) (FaviconCache, error) {
+	var out FaviconCache
+	return out, c.Get(ctx, "/favicons/cache", &out)
+}
+
+// ClearFaviconCache removes them, and tells how many it removed.
+func (c *Client) ClearFaviconCache(ctx context.Context) (FaviconCache, error) {
+	var out FaviconCache
+	return out, c.Send(ctx, http.MethodDelete, "/favicons/cache", nil, &out)
+}

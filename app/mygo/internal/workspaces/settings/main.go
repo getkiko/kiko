@@ -126,6 +126,7 @@ func (w *Workspace) networkGroup(c *ui.Context, doc *model.Doc) {
 				w.update(func(d *model.Doc) { d.BrowserWebRTC = on })
 			}
 		})
+		w.faviconRows(c, doc)
 		kit.SettingsRow(c, "统一延迟", "", func() {
 			on := !doc.LatencyPlain
 			if kit.Switch(c, &on, "统一延迟").Changed() {

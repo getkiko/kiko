@@ -6,6 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/getkiko/kiko/app/mygo/internal/api"
 	"github.com/getkiko/kiko/app/mygo/internal/env"
+	"github.com/getkiko/kiko/app/mygo/internal/favicon"
 	"github.com/getkiko/kiko/app/mygo/internal/kit"
 	"github.com/getkiko/kiko/app/mygo/internal/procicon"
 	"github.com/getkiko/kiko/app/mygo/internal/ruleactions"
@@ -362,6 +363,8 @@ func (w *Workspace) list(c *ui.Context) {
 		case "label":
 			if group == "process" {
 				w.processIcon(c, r.Label(0), 16)
+			} else if siteDimension(group) && w.sites() && favicon.Root(r.Label(0)) != "" {
+				w.siteIcon(c, r.Label(0), 16)
 			} else {
 				ic := kit.Icon(c, icon, 15)
 				if row != w.table.Selected {
@@ -372,6 +375,8 @@ func (w *Workspace) list(c *ui.Context) {
 		case "secondary":
 			if secondary == "process" {
 				w.processIcon(c, r.Label(1), 16)
+			} else if siteDimension(secondary) && w.sites() && favicon.Root(r.Label(1)) != "" {
+				w.siteIcon(c, r.Label(1), 16)
 			}
 			cellText(r.Label(1), secondary)
 		case "download":
@@ -427,6 +432,10 @@ func (w *Workspace) inspector(c *ui.Context) {
 		func() {
 			if w.group == "process" {
 				w.processIcon(c, sel.Label(0), 40)
+				return
+			}
+			if siteDimension(w.group) && w.sites() && favicon.Root(sel.Label(0)) != "" {
+				w.siteIcon(c, sel.Label(0), 40)
 				return
 			}
 			kit.Icon(c, icon, 22).TextColor(k.Label3)
@@ -563,4 +572,17 @@ func rangeText(q Query) string {
 // console's shared store, or the glyph of its kind.
 func (w *Workspace) processIcon(c *ui.Context, value string, size float32) {
 	procicon.View(c, w.icons, procicon.FromPath(value), procicon.Options{Size: size})
+}
+
+// siteDimension reports whether a dimension's values are domains, which
+// show their websites' icons.
+func siteDimension(dimension string) bool { return dimension == "host" || dimension == "rootDomain" }
+
+// sites reports whether website icons show; without them the rows keep
+// their dimension's icon.
+func (w *Workspace) sites() bool { return favicon.On(w.env, w.store) }
+
+// siteIcon is the website icon of domain, the globe while there is none.
+func (w *Workspace) siteIcon(c *ui.Context, domain string, size float32) {
+	favicon.Site(c, w.env, w.store, domain, size)
 }

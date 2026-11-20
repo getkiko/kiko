@@ -288,7 +288,7 @@ func (s *server) startBrowser(ctx context.Context, outbound, engine, target stri
 	session := &browserSession{outbound: outbound, engine: engine, done: make(chan struct{}), executable: executable}
 	proxyCtx, stop := context.WithCancel(context.Background())
 	session.stop = stop
-	address, err := s.startOutboundProxy(proxyCtx, ctx, outbound, func(up bool) { session.proxyDown.Store(!up) })
+	address, err := s.startOutboundProxy(proxyCtx, ctx, outbound, "", func(up bool) { session.proxyDown.Store(!up) })
 	if err != nil {
 		stop()
 		return nil, err
@@ -390,8 +390,9 @@ func (s *server) closeBrowsers() {
 // ctx ends, and returns its address once it listens, waiting no longer
 // than wait allows. When the core restarts the proxy follows it on the
 // same port, so the browser keeps working; state tells whether it is up
-// after it first listened.
-func (s *server) startOutboundProxy(ctx, wait context.Context, outbound string, state func(up bool)) (string, error) {
+// after it first listened. Its connections show as from inbound, the
+// core's "browser" when empty.
+func (s *server) startOutboundProxy(ctx, wait context.Context, outbound, inbound string, state func(up bool)) (string, error) {
 	type result struct {
 		address string
 		err     error
@@ -425,7 +426,7 @@ func (s *server) startOutboundProxy(ctx, wait context.Context, outbound string, 
 			client := s.grpcClient()
 			if client == nil {
 				report(result{err: errors.New("核心未运行，请先启动")})
-			} else if stream, err := client.StartOutboundProxy(ctx, &daemon.OutboundProxyRequest{Outbound: outbound, Port: port}); err != nil {
+			} else if stream, err := client.StartOutboundProxy(ctx, &daemon.OutboundProxyRequest{Outbound: outbound, Port: port, Inbound: inbound}); err != nil {
 				report(result{err: outboundProxyError(err, outbound)})
 			} else {
 				for {
