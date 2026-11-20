@@ -138,6 +138,8 @@ func fakeFacet(r api.ConnectionRow, f string) string {
 		return firstNonEmpty(r.Inbound, "—")
 	case "outbound":
 		return firstNonEmpty(r.Outbound, "—")
+	case "pid":
+		return facetOf(&r.Connection, facetPID)
 	case "id":
 		return r.ID
 	}
@@ -175,9 +177,12 @@ func (f *fakeConnections) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			pool = append(pool, row)
 		}
 	}
-	for _, name := range []string{"source", "process", "inbound", "outbound", "network"} {
+	for _, name := range []string{"source", "process", "pid", "inbound", "outbound", "network"} {
 		for _, row := range pool {
 			value := fakeFacet(row, name)
+			if value == "" {
+				continue
+			}
 			i := slices.IndexFunc(page.Facets[name], func(o api.ConnectionFacet) bool { return o.Value == value })
 			if i < 0 {
 				page.Facets[name] = append(page.Facets[name], api.ConnectionFacet{Value: value, ProcessInfo: row.ProcessInfo})

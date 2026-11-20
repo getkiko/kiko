@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -280,8 +281,11 @@ func (m *connMonitor) filterPane(c *ui.Context, d *connDerived) {
 			}
 			kit.FacetGroup(c, facetLabels[f], m.facets.Of(string(f)), len(options),
 				func(i int) string {
-					if f == facetSource {
+					switch f {
+					case facetSource:
 						return names.Text(options[i].value)
+					case facetPID:
+						return strings.TrimSpace(options[i].value + " " + d.pidName(options[i].value))
 					}
 					return options[i].value
 				},
@@ -299,13 +303,33 @@ func (m *connMonitor) filterPane(c *ui.Context, d *connDerived) {
 					if conn := d.facetIcons[facetKey(f, option.value)]; conn != nil {
 						icon = func() { m.connectionIcon(c, d, conn, 20) }
 					}
-					o := kit.FilterOption(c.Key(facetKey(f, option.value)), kit.FilterConnection, m.filter.Has(f, option.value), icon, option.value, option.count)
+					key := c.Key(facetKey(f, option.value))
+					var o ui.Element
+					if f == facetPID {
+						o = kit.FilterOptionIconNamed(key, kit.FilterConnection, m.filter.Has(f, option.value), icon, option.value, d.pidName(option.value), optionCount(option.count))
+					} else {
+						o = kit.FilterOption(key, kit.FilterConnection, m.filter.Has(f, option.value), icon, option.value, option.count)
+					}
 					if o.Clicked() {
 						m.toggleFilter(f, option.value)
 					}
 				})
 		}
 	})
+}
+
+// pidName is the process name of a PID filter option: the option's
+// process, else the process snapshot's; "" when neither names it.
+func (d *connDerived) pidName(value string) string {
+	if conn := d.facetIcons[facetKey(facetPID, value)]; conn != nil {
+		if name := processName(conn); name != "" {
+			return name
+		}
+	}
+	if pid, err := strconv.Atoi(value); err == nil {
+		return d.iconProcesses[pid].Name
+	}
+	return ""
 }
 
 // list builds the table of the current page, or the empty state.

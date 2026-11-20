@@ -9,12 +9,23 @@ import "github.com/egoist/mygo/ui"
 // button's accessible label is "label name". Read Clicked on the element it
 // returns.
 func FilterOptionNamed(c *ui.Context, variant FilterVariant, selected bool, label, name, detail string) ui.Element {
+	return FilterOptionIconNamed(c, variant, selected, nil, label, name, detail)
+}
+
+// FilterOptionIconNamed is FilterOptionNamed with an icon before the label,
+// as the connection PID options show the process icon and name; icon may
+// be nil.
+func FilterOptionIconNamed(c *ui.Context, variant FilterVariant, selected bool, icon func(), label, name, detail string) ui.Element {
 	k := T(c)
 	full := label
 	if name != "" {
 		full = label + " " + name
 	}
-	o := ui.ButtonBase(c).MinHeight(26).PaddingX(7).Gap(6).Radius(7).FontSize(FontTable).Label(full).
+	gap := float32(6)
+	if icon != nil {
+		gap = 7
+	}
+	o := ui.ButtonBase(c).MinHeight(26).PaddingX(7).Gap(gap).Radius(7).FontSize(FontTable).Label(full).
 		Transition(HoverMotion)
 	if variant == FilterDefault {
 		o.MinHeight(28)
@@ -34,6 +45,9 @@ func FilterOptionNamed(c *ui.Context, variant FilterVariant, selected bool, labe
 			if selected {
 				mark.Background(k.Accent).Border(0, k.Accent).TextColor(k.OnAccent).Children(func() { Icon(c, SymCheck, 10) })
 			}
+		}
+		if icon != nil {
+			icon()
 		}
 		weight := filterWeight(variant, selected)
 		if name == "" {
