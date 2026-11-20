@@ -6,7 +6,7 @@
 package main
 
 import (
-	_ "embed"
+	"embed"
 	"errors"
 	"flag"
 	"fmt"
@@ -20,6 +20,11 @@ import (
 
 //go:embed index.html.tmpl
 var indexTemplate string
+
+// assets are the icons the page links to, written beside it.
+//
+//go:embed assets
+var assets embed.FS
 
 var page = template.Must(template.New("index").Parse(indexTemplate))
 
@@ -103,6 +108,19 @@ func write(out string, s Site) error {
 	}
 	if err := f.Close(); err != nil {
 		return err
+	}
+	entries, err := assets.ReadDir("assets")
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		data, err := assets.ReadFile("assets/" + e.Name())
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(out, e.Name()), data, 0o644); err != nil {
+			return err
+		}
 	}
 	// GitHub Pages serves the files as they are, without Jekyll.
 	return os.WriteFile(filepath.Join(out, ".nojekyll"), nil, 0o644)

@@ -51,13 +51,13 @@ Installers and the documentation site are at **<https://getkiko.github.io/kiko/>
 
 | Platform | Install | Upgrade |
 | --- | --- | --- |
-| macOS | `curl -fsSL https://github.com/getkiko/kiko/releases/latest/download/install.sh \| sh` | In-app update check, or rerun the install command |
+| macOS | Download the Apple silicon or Intel `.dmg` from the [latest release](https://github.com/getkiko/kiko/releases/latest) and drag Kiko to Applications | In-app update check |
 | Windows | `irm https://github.com/getkiko/kiko/releases/latest/download/install.ps1 \| iex` | In-app update check, or rerun the install command |
 | Linux server | `curl -fsSL https://github.com/getkiko/kiko/releases/latest/download/install-server.sh \| sudo sh` | `sudo kiko upgrade` |
 
 On a Linux server, `kiko` is the management command (`sudo kiko pair`, `kiko status`, `sudo kiko restart`, `kiko logs`, `sudo kiko uninstall`). Run `sudo kiko pair` and add the server from the desktop app with the pairing string it prints.
 
-The macOS app is ad-hoc signed and the Windows app is not code-signed yet. The install commands are not affected; a DMG downloaded in a browser is blocked by Gatekeeper, and Windows SmartScreen may warn on first launch.
+The macOS app is ad-hoc signed and the Windows app is not code-signed yet. On first launch macOS asks to confirm the app in System Settings → Privacy & Security ("Open Anyway"), and Windows SmartScreen may warn.
 
 ## Build from source
 

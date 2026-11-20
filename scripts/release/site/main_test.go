@@ -18,7 +18,7 @@ func TestWrite(t *testing.T) {
 	}
 	page := string(data)
 	for _, want := range []string{
-		"curl -fsSL https://github.com/getkiko/kiko/releases/latest/download/install.sh | sh",
+		"curl -fsSL https://github.com/getkiko/kiko/releases/latest/download/install.sh | sh -s -- --uninstall",
 		"irm https://github.com/getkiko/kiko/releases/latest/download/install.ps1 | iex",
 		"curl -fsSL https://github.com/getkiko/kiko/releases/latest/download/install-server.sh | sudo sh",
 		"sudo kiko upgrade",
@@ -32,6 +32,10 @@ func TestWrite(t *testing.T) {
 			t.Errorf("page lacks %q", want)
 		}
 	}
+	// macOS installs from the disk images, not the install script.
+	if strings.Contains(page, "install.sh | sh</code>") {
+		t.Error("page offers the macOS install script")
+	}
 	// The management command is /usr/local/bin/kiko; kiko-server is the service
 	// binary.
 	if strings.Contains(page, "sudo kiko-server") {
@@ -39,6 +43,15 @@ func TestWrite(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(out, ".nojekyll")); err != nil {
 		t.Error(err)
+	}
+	// The icons the page links to are written beside it.
+	for _, name := range []string{"favicon.png", "apple-touch-icon.png", "screenshot-light.png", "screenshot-dark.png"} {
+		if !strings.Contains(page, `"`+name+`"`) {
+			t.Errorf("page does not link %s", name)
+		}
+		if info, err := os.Stat(filepath.Join(out, name)); err != nil || info.Size() == 0 {
+			t.Errorf("%s not written: %v", name, err)
+		}
 	}
 }
 

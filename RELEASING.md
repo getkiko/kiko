@@ -4,7 +4,7 @@ Source code, releases and the documentation site all live in the public reposito
 
 | Platform | Install | Upgrade |
 | --- | --- | --- |
-| macOS | `curl -fsSL https://github.com/getkiko/kiko/releases/latest/download/install.sh \| sh` | In-app update check (daily, or from the app menu); or rerun the install command |
+| macOS | The `.dmg` of the release (Apple silicon or Intel) | In-app update check (daily, or from the app menu) |
 | Windows | `irm https://github.com/getkiko/kiko/releases/latest/download/install.ps1 \| iex` | Same as macOS |
 | Linux server | `curl -fsSL https://github.com/getkiko/kiko/releases/latest/download/install-server.sh \| sudo sh` | `sudo kiko upgrade` |
 
@@ -80,5 +80,5 @@ scripts/release/package-server.sh amd64         # app/build/release/
 
 ## Known gaps
 
-- The macOS app is ad-hoc signed. Installing with the install command or updating in-app works; a DMG downloaded in a browser is blocked by Gatekeeper until the app is signed with a Developer ID and notarized.
+- The macOS app is ad-hoc signed. Updating in-app works; a DMG downloaded in a browser needs "Open Anyway" in System Settings → Privacy & Security on first launch until the app is signed with a Developer ID and notarized.
 - The Windows app is not code-signed, so SmartScreen warns on first launch.
