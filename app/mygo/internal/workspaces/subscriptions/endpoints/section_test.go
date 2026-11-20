@@ -295,11 +295,12 @@ func TestTaildropInbox(t *testing.T) {
 	testkit.Until(t, f.tt, func() bool { return f.s.rt.tailscale["Tailscale"] != nil })
 	f.openTailscale()
 	testkit.UntilText(t, f.tt, "Taildrop 收件箱")
-	for _, text := range []string{"photo.jpg", "2.0 KB · nas", "big.iso", "接收中 25%"} {
+	for _, text := range []string{"Taildrop 接收目录", "photo.jpg", "2.0 KB · nas", "big.iso", "接收中 25%"} {
 		if !f.tt.HasText(text) {
 			t.Fatalf("inbox lacks %q: %q", text, f.tt.Texts())
 		}
 	}
+	f.snapshot("endpoints-taildrop")
 	f.click("删除")
 	if body := f.waitBody("DELETE /taildrop/file"); body["endpointTag"] != "Tailscale" || body["name"] != "photo.jpg" {
 		t.Fatalf("delete body %v", body)

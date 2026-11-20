@@ -201,7 +201,7 @@ func tagField(c *ui.Context, key, label string, text *string, keywords *[]string
 		})
 	})
 	if input.Focused() {
-		field.Border(1.5, kt.Accent.Alpha(0.6))
+		kit.FocusRing(field, 1.5, kt.Accent.Alpha(0.6))
 	}
 	commit := func() {
 		*keywords = addKeyword(*keywords, *text)

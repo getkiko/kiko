@@ -123,8 +123,13 @@ func (s *subsSection) subCard(c *ui.Context, doc *model.Doc, item model.TopLevel
 				invalidBadge(c)
 			}
 		},
-		// The more button needs no room kept for it: nothing ends the header.
-		HeaderEnd: func() {},
+		// A chain every node dials through shows as a tag; the more
+		// button needs no room kept for it.
+		HeaderEnd: func() {
+			if len(sub.Chain) > 0 {
+				kit.HeroTags(c, true, "")
+			}
+		},
 		Main: func() {
 			if usage.used == "" {
 				kit.HeroValue(c, "—")

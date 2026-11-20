@@ -14,60 +14,80 @@ import (
 // chainDrag is a hop dragged within a chain.
 type chainDrag struct{ id string }
 
-// chainRowH is a hop's row.
-const chainRowH = 30
+// Chain editor metrics: a hop's chip, the widest its name shows, and the
+// add chip.
+const (
+	chainChipH     = 26
+	chainNameMaxW  = 180
+	chainAddChipW  = 66
+	chainAddPrompt = "＋ 添加"
+)
 
 // ChainEditor edits *chain, the proxy chain of owners (the outbound or
-// endpoint edited, or every node of a subscription), in the order traffic
-// takes it: a path from this host through every hop to ownerName, the
-// hops numbered and dragged into order, each removable, then "+ Add hop"
-// offering what may stand next. A hop at fault, or a cycle, shows its
-// problem. It reports whether the chain changed.
+// endpoint edited, or every node of a subscription), as the path traffic
+// takes, left to right and wrapping: this host, a chip for each hop,
+// dragged onto another to take its place and removed by its ×, "+ Add"
+// offering what may stand next, then ownerName. A hop at fault is marked
+// and its problem, or a cycle, shows below. It reports whether the chain
+// changed.
 func ChainEditor(c *ui.Context, key any, doc *model.Doc, chain *[]string, owners []string, ownerName string) bool {
 	k := kit.T(c)
 	changed := false
-	ui.Column(c.Key(key)).Gap(5).Shrink(0).Children(func() {
+	ui.Column(c.Key(key)).Gap(6).Shrink(0).Children(func() {
 		ui.Text(c, "代理链").FontSize(kit.FontTable).TextColor(k.Label2).SingleLine()
-		ui.Text(c, chainPath(doc, *chain, ownerName)).FontSize(kit.FontCaption).TextColor(k.Label3).Wrap()
 		issue, ok := model.ChainError(doc, owners, *chain)
-		if len(*chain) > 0 {
-			ui.Column(c.Key("hops")).Shrink(0).Children(func() {
-				for i, id := range *chain {
-					if chainRow(c, doc, chain, i, id, k) {
-						changed = true
-					}
-					if !ok && issue.Hop == i {
-						ui.Column(c).PaddingStart(30).Shrink(0).Children(func() { kit.FormError(c, issue.Message) })
-					}
+		options := ChainCandidates(doc, owners, *chain)
+		ui.Row(c.Key("hops")).Wrap().GapX(4).GapY(6).AlignItems(ui.Center).Shrink(0).Children(func() {
+			end := func(text string) {
+				ui.Text(c, text).FontSize(kit.FontTable).TextColor(k.Label3).SingleLine().Shrink(0)
+			}
+			arrow := func() {
+				ui.Text(c, "→").FontSize(kit.FontTable).TextColor(k.Label4).SingleLine().Shrink(0)
+			}
+			end("本机")
+			for i, id := range *chain {
+				arrow()
+				if chainChip(c, doc, chain, i, id, !ok && issue.Hop == i, k) {
+					changed = true
 				}
-			})
-		}
-		if !ok && issue.Hop < 0 {
+			}
+			if len(options) > 0 {
+				arrow()
+				var add string
+				trigger := kit.SearchSelect(c, "chain-add", &add, options, kit.SearchSelectOptions{Label: "添加一跳", Empty: chainAddPrompt,
+					Placeholder: "搜索出站…", Width: chainAddChipW, NoChevron: true})
+				trigger.Height(chainChipH).PaddingX(10).Radius(kit.RadiusCapsule).FontSize(kit.FontTable).Shrink(0).
+					Border(1, k.Label4).BorderStyle(ui.BorderDashed).Transition(kit.HoverMotion)
+				switch {
+				case trigger.Pressed():
+					trigger.Background(k.Fill2)
+				case trigger.Hovered():
+					trigger.Background(k.Fill)
+				default:
+					trigger.Background(k.Fill.Alpha(0))
+				}
+				if trigger.Changed() && add != "" {
+					*chain = append(slices.Clone(*chain), add)
+					changed = true
+				}
+			}
+			arrow()
+			end(ownerName)
+		})
+		if !ok {
 			kit.FormError(c, issue.Message)
 		}
 		if hops := model.ChainWithoutUDP(doc, *chain); len(hops) > 0 {
 			ui.Text(c, "经过「"+strings.Join(hops, "」「")+"」的链不转发 UDP").FontSize(kit.FontCaption).TextColor(k.Label3).Wrap()
 		}
-		options := ChainCandidates(doc, owners, *chain)
-		if len(options) == 0 {
-			return
-		}
-		var add string
-		empty := "＋ 添加第 1 跳"
-		if len(*chain) > 0 {
-			empty = fmt.Sprintf("＋ 添加第 %d 跳", len(*chain)+1)
-		}
-		if kit.SearchSelect(c, "chain-add", &add, options, kit.SearchSelectOptions{Label: "添加一跳", Empty: empty, Placeholder: "搜索出站…"}).Changed() && add != "" {
-			*chain = append(slices.Clone(*chain), add)
-			changed = true
-		}
 	})
 	return changed
 }
 
-// chainRow is hop i of the chain: its place, name and protocol, dragged to
-// reorder, × on hover. It reports whether the chain changed.
-func chainRow(c *ui.Context, doc *model.Doc, chain *[]string, i int, id string, k *kit.Tokens) bool {
+// chainChip is hop i of the chain, a capsule of its name and protocol
+// with a ×, dragged onto another hop to take its place; fault marks the
+// hop at fault. It reports whether the chain changed.
+func chainChip(c *ui.Context, doc *model.Doc, chain *[]string, i int, id string, fault bool, k *kit.Tokens) bool {
 	changed := false
 	t := model.FindOutboundTarget(doc, id)
 	name, detail := id, "已删除"
@@ -77,30 +97,34 @@ func chainRow(c *ui.Context, doc *model.Doc, chain *[]string, i int, id string, 
 			detail = "策略组"
 		}
 	}
-	row := ui.Row(c.Key("hop-" + id)).Height(chainRowH).Gap(6).PaddingX(6).Radius(7).Shrink(0).Transition(kit.HoverMotion).Label(fmt.Sprintf("第 %d 跳 %s", i+1, name))
-	row.Drag(chainDrag{id})
-	if row.Dragging() {
-		row.Opacity(0.45)
+	chip := ui.Row(c.Key("hop-" + id)).Height(chainChipH).Gap(5).PaddingStart(10).PaddingEnd(4).Radius(kit.RadiusCapsule).
+		Shrink(0).MinWidth(0).Transition(kit.HoverMotion).Label(fmt.Sprintf("第 %d 跳 %s", i+1, name))
+	chip.Drag(chainDrag{id})
+	if chip.Dragging() {
+		chip.Opacity(0.45)
 	}
-	hovered := row.Hovered()
-	dragged, over := ui.DragOver[chainDrag](row)
+	dragged, over := ui.DragOver[chainDrag](chip)
 	switch {
 	case over && dragged.id != id:
-		row.Background(k.AccentWeak)
-	case hovered && !row.Dragging():
-		row.Background(k.Fill)
+		chip.Background(k.AccentWeak).Border(1, k.Accent)
+	case fault:
+		chip.Background(k.DangerWeak).Border(1, k.Danger.Alpha(0.6))
+	case chip.Hovered() && !chip.Dragging():
+		chip.Background(k.Fill2).Border(1, k.Fill.Alpha(0))
 	default:
-		row.Background(k.Fill.Alpha(0))
+		chip.Background(k.Fill).Border(1, k.Fill.Alpha(0))
 	}
-	if v, ok := ui.Drop[chainDrag](row); ok && v.id != id {
+	if v, ok := ui.Drop[chainDrag](chip); ok && v.id != id {
 		*chain = moveHop(*chain, v.id, id)
 		changed = true
 	}
-	row.Children(func() {
-		ui.Text(c, fmt.Sprint(i+1)).FontSize(kit.FontTable).FontWeight(600).FontFeatures("tnum").TextColor(k.Label3).Width(18).Shrink(0).SingleLine()
-		ui.Text(c, name).FontSize(kit.FontBody).SingleLine().Ellipsis("…").MinWidth(0).Grow(1)
+	chip.Children(func() {
+		text := ui.Text(c, name).FontSize(kit.FontBody).SingleLine().Ellipsis("…").MinWidth(0).MaxWidth(chainNameMaxW)
+		if fault {
+			text.TextColor(k.Danger)
+		}
 		ui.Text(c, detail).FontSize(kit.FontCaption).TextColor(k.Label3).SingleLine().Shrink(0)
-		if hovered && kit.IconButton(c, kit.SymX, "移除 "+name, kit.IconButtonOptions{Size: 20, IconSize: 11}).Clicked() {
+		if kit.IconButton(c, kit.SymX, "移除 "+name, kit.IconButtonOptions{Size: 18, IconSize: 10}).Clicked() {
 			*chain = slices.DeleteFunc(slices.Clone(*chain), func(h string) bool { return h == id })
 			changed = true
 		}
@@ -116,19 +140,6 @@ func moveHop(chain []string, id, target string) []string {
 	}
 	out := slices.Delete(slices.Clone(chain), from, from+1)
 	return slices.Insert(out, to, id)
-}
-
-// chainPath is the way traffic takes, "本机 → A → B → ownerName".
-func chainPath(doc *model.Doc, chain []string, ownerName string) string {
-	parts := []string{"本机"}
-	for _, id := range chain {
-		if t := model.FindOutboundTarget(doc, id); t.Valid() {
-			parts = append(parts, t.Tag())
-		} else {
-			parts = append(parts, "（已删除）")
-		}
-	}
-	return strings.Join(append(parts, ownerName), " → ")
 }
 
 // ChainCandidates are the outbounds that may stand next in chain: for the

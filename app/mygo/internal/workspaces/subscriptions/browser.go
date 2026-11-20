@@ -12,30 +12,51 @@ import (
 
 // browserItems are the menu items that open a browser going through
 // outbound o alone, to use or check the web as it reaches it: the built-in
-// browser on macOS, and Chrome. Outbounds that forward nothing (block,
-// dns) have none.
-func (s *outboundsSection) browserItems(o *model.Outbound) []kit.EntityMenuItem {
+// browser on macOS, and Chrome; the outbound cards and the nodes sheet
+// show them. Outbounds that forward nothing (block, dns) have none; those
+// the core does not run, disabled or of a disabled subscription, have
+// them disabled.
+func (w *Workspace) browserItems(o *model.Outbound) []kit.EntityMenuItem {
 	switch o.Type {
 	case "block", "dns":
 		return nil
 	}
+	off := !o.Enabled
+	if o.SubID != "" {
+		sub := findSubscription(w.store.Doc(), o.SubID)
+		off = off || sub == nil || !sub.Enabled
+	}
 	id := o.ID
 	open := func(engine string) func(ui.Element) {
-		return func(ui.Element) { s.openBrowser(id, engine) }
+		return func(ui.Element) { w.openBrowser(id, engine) }
 	}
 	var items []kit.EntityMenuItem
 	if runtime.GOOS == "darwin" {
-		items = append(items, kit.EntityMenuItem{Label: "用此出站打开浏览器", Icon: kit.SymGlobe, Disabled: !o.Enabled, Run: open("webview")})
+		items = append(items, kit.EntityMenuItem{Label: "用此出站打开浏览器", Icon: kit.SymGlobe, Disabled: off, Run: open("webview")})
 	}
-	return append(items, kit.EntityMenuItem{Label: "用 Chrome 打开", Icon: kit.SymExternalLink, Disabled: !o.Enabled, Run: open("chrome")})
+	return append(items, kit.EntityMenuItem{Label: "用 Chrome 打开", Icon: kit.SymExternalLink, Disabled: off, Run: open("chrome")})
+}
+
+// browserMenu adds o's browserItems to menu m, after a separator.
+func (w *Workspace) browserMenu(m *ui.Menu, o *model.Outbound) {
+	items := w.browserItems(o)
+	if len(items) == 0 {
+		return
+	}
+	m.Separator()
+	for _, item := range items {
+		if m.Item(item.Label).Disabled(item.Disabled).Chosen() {
+			item.Run(ui.Element{})
+		}
+	}
 }
 
 // openBrowser opens the home page in the browser of engine through
 // outbound id, by the tag the core runs it with; a failure shows as a
 // toast.
-func (s *outboundsSection) openBrowser(id, engine string) {
-	e := s.w.env
-	doc := s.w.store.Doc()
+func (w *Workspace) openBrowser(id, engine string) {
+	e := w.env
+	doc := w.store.Doc()
 	tag := emit.EmittedTags(doc).Outbounds[id]
 	if tag == "" {
 		e.Toast("该出站未启用，无法打开浏览器")

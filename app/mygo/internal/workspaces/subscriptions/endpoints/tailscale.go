@@ -525,52 +525,54 @@ func (t *tailscaleSheet) sendsView(c *ui.Context, tag string, groups []api.Tails
 		}
 	}
 	now := time.Now()
-	ui.Column(c.Key("sends")).Gap(4).Shrink(0).Children(func() {
-		subHeading(c, "Taildrop 发送", "", nil)
-		listCard(c, func() {
-			for _, task := range sends {
-				names := make([]string, len(task.Files))
-				for i, f := range task.Files {
-					names[i] = f.Name
-				}
-				var state string
-				switch task.State {
-				case "uploading":
-					state = "准备发送…"
-				case "sending":
-					percent := 0
-					if task.TotalBytes > 0 {
-						percent = min(100, int(math.Round(float64(task.SentBytes)/float64(task.TotalBytes)*100)))
+	// Its heading as the Taildrop directory's and inbox's.
+	ui.Column(c.Key("sends")).Shrink(0).Children(func() {
+		detailSection(c, "Taildrop 发送", nil, func() {
+			listCard(c, func() {
+				for _, task := range sends {
+					names := make([]string, len(task.Files))
+					for i, f := range task.Files {
+						names[i] = f.Name
 					}
-					state = fmt.Sprintf("发送中 %d%% · %s / %s", percent, formatBytes(task.SentBytes), formatBytes(task.TotalBytes))
-				case "completed":
-					state = "已发送"
-				case "canceled":
-					state = "已取消"
-				default:
-					state = "发送失败：" + firstOf(task.Error, "未知错误")
-				}
-				who := task.Peer
-				if p, ok := peers[task.Peer]; ok {
-					who = peerName(p)
-				}
-				ui.Row(c.Key(task.ID)).Padding(10, 12).Gap(8).Children(func() {
-					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-						ui.Text(c, strings.Join(names, "、")).FontSize(14).SingleLine().Ellipsis("…")
-						line := ui.Text(c, who+" · "+state+" · "+taildropTime(task.UpdatedAt, now)).FontSize(kit.FontTable).TextColor(k.Label3).Wrap()
-						if task.State == "failed" {
-							line.TextColor(k.Danger)
+					var state string
+					switch task.State {
+					case "uploading":
+						state = "准备发送…"
+					case "sending":
+						percent := 0
+						if task.TotalBytes > 0 {
+							percent = min(100, int(math.Round(float64(task.SentBytes)/float64(task.TotalBytes)*100)))
+						}
+						state = fmt.Sprintf("发送中 %d%% · %s / %s", percent, formatBytes(task.SentBytes), formatBytes(task.TotalBytes))
+					case "completed":
+						state = "已发送"
+					case "canceled":
+						state = "已取消"
+					default:
+						state = "发送失败：" + firstOf(task.Error, "未知错误")
+					}
+					who := task.Peer
+					if p, ok := peers[task.Peer]; ok {
+						who = peerName(p)
+					}
+					ui.Row(c.Key(task.ID)).Padding(10, 12).Gap(8).Children(func() {
+						ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+							ui.Text(c, strings.Join(names, "、")).FontSize(14).SingleLine().Ellipsis("…")
+							line := ui.Text(c, who+" · "+state+" · "+taildropTime(task.UpdatedAt, now)).FontSize(kit.FontTable).TextColor(k.Label3).Wrap()
+							if task.State == "failed" {
+								line.TextColor(k.Danger)
+							}
+						})
+						if taildropActive(task) {
+							id := task.ID
+							kit.IconButton(c, kit.SymX, "取消发送", kit.IconButtonOptions{Size: 32}).OnClick(func() {
+								t.guard(func(ctx context.Context) error { return t.s.env.API.TaildropSendCancel(ctx, id) })
+								t.s.rt.refreshSends()
+							})
 						}
 					})
-					if taildropActive(task) {
-						id := task.ID
-						kit.IconButton(c, kit.SymX, "取消发送", kit.IconButtonOptions{Size: 32}).OnClick(func() {
-							t.guard(func(ctx context.Context) error { return t.s.env.API.TaildropSendCancel(ctx, id) })
-							t.s.rt.refreshSends()
-						})
-					}
-				})
-			}
+				}
+			})
 		})
 	})
 }
@@ -580,8 +582,10 @@ func (t *tailscaleSheet) inboxView(c *ui.Context, tag string, inbox *api.Taildro
 	if inbox == nil || len(inbox.Files)+len(inbox.Receiving) == 0 {
 		return
 	}
-	ui.Column(c.Key("inbox")).Gap(4).Shrink(0).Children(func() {
-		subHeading(c, "Taildrop 收件箱", strconv.Itoa(len(inbox.Files)+len(inbox.Receiving)), nil)
+	count := strconv.Itoa(len(inbox.Files) + len(inbox.Receiving))
+	detailSection(c, "Taildrop 收件箱", func() {
+		ui.Text(c, count).FontSize(kit.FontCaption).TextColor(k.Label3).FontFeatures("tnum")
+	}, func() {
 		listCard(c, func() {
 			for _, f := range inbox.Receiving {
 				f := f

@@ -258,6 +258,7 @@ func (s *Section) endpointList(c *ui.Context, doc *model.Doc) {
 			kind: kindEndpoint, id: endpoint.ID, tag: endpoint.Tag, typ: endpoint.Type,
 			title:   endpoint.Tag,
 			enabled: endpoint.Enabled,
+			chained: len(endpoint.Chain) > 0,
 			invalid: model.HasInvalidEndpointReferences(doc, endpoint, library),
 			main:    schema.EndpointAddress(endpoint.Type, endpoint.Fields),
 			mono:    true,
@@ -364,6 +365,8 @@ func (s *Section) serviceList(c *ui.Context, doc *model.Doc) {
 type heroItem struct {
 	kind, id, tag, typ, title string
 	enabled                   bool
+	// chained marks an item dialing through a proxy chain.
+	chained bool
 	// invalid marks a card needing a fix ("Needs fix"); badge, in
 	// badgeTone, marks one otherwise, as "Needs check".
 	invalid   bool
@@ -402,7 +405,7 @@ func (s *Section) heroCard(c *ui.Context, h heroItem) {
 				kit.Badge(c, h.badge, h.badgeTone)
 			}
 		},
-		HeaderEnd: func() { kit.HeroTag(c, strings.ToUpper(h.typ)) },
+		HeaderEnd: func() { kit.HeroTags(c, h.chained, strings.ToUpper(h.typ)) },
 		Main: func() {
 			switch {
 			case h.main == "":

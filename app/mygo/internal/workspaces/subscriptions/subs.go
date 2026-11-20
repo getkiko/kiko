@@ -391,7 +391,8 @@ func (n *nodesSheet) rail(c *ui.Context, rows *nodeRows) {
 // row builds row i of the list: a region's header, its name and count,
 // testing the region's nodes (nodeview.SectionHeader), or a node: its
 // flag, name, protocol, address and latency, which a click tests again;
-// its context menu tests it and copies its share link or address.
+// its context menu tests it, copies its share link or address and opens a
+// browser through it.
 func (n *nodesSheet) row(c *ui.Context, rows *nodeRows, i int) {
 	k := kit.T(c)
 	r := rows.rows[i]
@@ -421,6 +422,7 @@ func (n *nodesSheet) row(c *ui.Context, rows *nodeRows, i int) {
 			c.WriteClipboard(r.endpoint)
 			n.w.env.Toast("地址已复制")
 		}
+		n.w.browserMenu(m, o)
 	})
 	name := k.Label
 	if !o.Enabled {

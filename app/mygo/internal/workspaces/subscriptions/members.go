@@ -753,7 +753,7 @@ func compactSearch(c *ui.Context, key string, query *string, width float32) {
 			Placeholder("搜索").TextColor(k.Label).Label("搜索最终成员")
 	})
 	if input.Focused() {
-		box.Border(1.5, k.Accent.Alpha(0.6))
+		kit.FocusRing(box, 1.5, k.Accent.Alpha(0.6))
 	}
 	if *query != "" && input.Shortcut(0, ui.KeyEscape) {
 		*query = ""

@@ -254,7 +254,7 @@ func (s *outboundsSection) card(c *ui.Context, doc *model.Doc, regions *model.Re
 		}
 		uses := model.OutboundUseCount(doc, id)
 		opts.Header = func() { cardTitle(c, func() { kit.HeroInitial(c, initial) }, title, invalid) }
-		opts.HeaderEnd = func() { kit.HeroTag(c, strings.ToUpper(o.Type)) }
+		opts.HeaderEnd = func() { kit.HeroTags(c, len(o.Chain) > 0, strings.ToUpper(o.Type)) }
 		opts.Main = func() { cardDetail(c, !o.Enabled, fmt.Sprintf("被 %d 处使用", uses)) }
 	} else {
 		region, found := regions.RegionOf(o.Tag)
@@ -286,7 +286,7 @@ func (s *outboundsSection) card(c *ui.Context, doc *model.Doc, regions *model.Re
 			}
 		}
 		opts.Header = func() { cardTitle(c, lead, name, invalid) }
-		opts.HeaderEnd = func() { kit.HeroTag(c, nodeview.ProtocolTag(o.Type)) }
+		opts.HeaderEnd = func() { kit.HeroTags(c, len(o.Chain) > 0, nodeview.ProtocolTag(o.Type)) }
 		opts.Main = func() {
 			cardMono(c, !o.Enabled, address)
 			if place != "" {
@@ -321,7 +321,7 @@ func (s *outboundsSection) cardOptions(c *ui.Context, o *model.Outbound, title s
 // has a share link, and Delete, confirmed at the more button.
 func (s *outboundsSection) heroCard(c *ui.Context, o *model.Outbound, title string, opts kit.HeroCardOptions) {
 	id := o.ID
-	opts.Menu = append(opts.Menu, s.browserItems(o)...)
+	opts.Menu = append(opts.Menu, s.w.browserItems(o)...)
 	if _, ok := subscription.FormatOutboundLink(o); ok {
 		opts.Menu = append(opts.Menu, kit.EntityMenuItem{Label: "复制链接", Icon: kit.SymCopy, Run: func(ui.Element) { s.copyLink(c, o) }})
 	}
