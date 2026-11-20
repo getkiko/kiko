@@ -2,7 +2,7 @@
   "name": "Kiko",
   "slug": "kiko",
   "identifier": "io.github.getkiko.kiko",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "copyright": "© 2026 getkiko",
   "out": "../build",
   "macos": {
