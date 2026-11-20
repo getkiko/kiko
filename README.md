@@ -15,6 +15,7 @@ The desktop app (macOS and Windows) runs its core, `kiko-core` (a sing-box fork)
 - Native console built with [MyGo](https://github.com/egoist/mygo): no webview, no bundled web frontend.
 - Subscriptions, inbounds, outbounds and endpoints in one place, with latency testing that runs in parallel and a unified latency mode.
 - Policy groups with manual, fastest, failover, load-balance and smart selection; nested groups fail over as a whole.
+- A menu bar item that shows the current upload and download rates and lets you switch and test each group's nodes without opening the console.
 - Routing rules per device, each device with several switchable profiles, plus a live topology view that shows which rules are carrying traffic.
 - "Apply without restart": most configuration changes are applied to the running core without dropping unrelated connections.
 - DNS split rules that can race several DNS servers, each with its own outbound.

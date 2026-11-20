@@ -121,6 +121,9 @@ func TestEditorGuardPressOutsideAsks(t *testing.T) {
 // sidebar of a window width wide, above its "Save rule" and Cancel.
 func assertQuestionOverFooter(t *testing.T, f *fixture, width float32) {
 	t.Helper()
+	// The Tester's clock stands still: the sidebar's entrance and the
+	// question's rise end once it moves on.
+	f.tt.Advance(time.Second)
 	bar, ok := f.tt.Find("放弃更改？")
 	save, ok2 := f.tt.Find("保存规则")
 	cancel, ok3 := f.tt.Find("取消")

@@ -175,6 +175,7 @@ func (s *shell) bootstrap() error {
 		return err
 	}
 	s.menu.install()
+	s.startTray()
 	restore, open := s.servers.Restore()
 	s.openServer(servers.LocalID)
 	if restore {
