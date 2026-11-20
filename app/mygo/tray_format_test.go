@@ -11,10 +11,11 @@ import (
 
 func TestFormatRateKeepsFourCharacters(t *testing.T) {
 	cases := map[float64]string{
-		-1:                "  0B",
-		0:                 "  0B",
-		999:               "999B",
-		999.6:             "1.0K",
+		-1:                "  0K",
+		0:                 "  0K",
+		30:                "0.1K",
+		245:               "0.2K",
+		999:               "1.0K",
 		1024:              "1.0K",
 		1536:              "1.5K",
 		12 * 1024:         " 12K",
@@ -36,7 +37,7 @@ func TestFormatRateKeepsFourCharacters(t *testing.T) {
 }
 
 func TestSpeedTitle(t *testing.T) {
-	if got := speedTitle(1536, 0); got != "↓1.5K ↑  0B" {
+	if got := speedTitle(1536, 0); got != "↓1.5K ↑  0K" {
 		t.Fatalf("speedTitle = %q", got)
 	}
 }

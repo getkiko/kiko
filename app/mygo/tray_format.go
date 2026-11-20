@@ -12,13 +12,16 @@ import (
 // themselves: the rate title and the latency badges.
 
 // formatRate is a rate in bytes per second in four characters, padded on
-// the left: "  0B", "999B", "1.2K", " 12K", "999K", "1.0M", "120M", "1.2G".
-// The title keeps its width in the monospaced font as the rate changes.
+// the left, K the smallest unit so that a few hundred bytes do not read as
+// a large number: "  0K", "0.1K" (any traffic under it), "0.2K", "1.2K",
+// " 12K", "999K", "1.0M", "120M", "1.2G". The title keeps its width in the
+// monospaced font as the rate changes.
 func formatRate(rate float64) string {
-	if rate < 0 || math.IsNaN(rate) {
-		rate = 0
+	if rate <= 0 || math.IsNaN(rate) {
+		return "  0K"
 	}
-	units := []string{"B", "K", "M", "G", "T"}
+	units := []string{"K", "M", "G", "T"}
+	rate /= 1024
 	unit := 0
 	// A value that would round to 1000 moves to the next unit, so the
 	// number never takes four digits.
@@ -28,8 +31,8 @@ func formatRate(rate float64) string {
 	}
 	var number string
 	switch {
-	case unit == 0:
-		number = fmt.Sprintf("%.0f", rate)
+	case rate < 0.1:
+		number = "0.1"
 	case rate < 9.95:
 		number = fmt.Sprintf("%.1f", rate)
 	default:
