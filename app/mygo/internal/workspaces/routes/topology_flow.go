@@ -85,6 +85,13 @@ func (l *topoFlowLine) speed() float64 {
 	return flowSpeedMin * math.Pow(flowSpeedMax/flowSpeedMin, min(max(l.level, 0), 1))
 }
 
+// tint is how strongly the rule's lines take its tone while busy: clear
+// from the least traffic, deeper for more, fading as the traffic ends.
+func (l *topoFlowLine) tint() float32 {
+	strength := min(l.level/rateFlowMin, 1)
+	return float32(strength * (0.35 + 0.3*min(l.level, 1)))
+}
+
 // visible reports whether the line draws dots.
 func (l *topoFlowLine) visible() bool { return l.level >= flowVisible }
 
@@ -155,6 +162,10 @@ func flowDots(length float32, travelled, speed, level float64, unit float32) []t
 	}
 	// The pattern repeats every three spacings.
 	moved := float32(math.Mod(travelled*float64(unit), float64(spacing)*3))
+	if moved < 0 {
+		// A rule's exit line starts behind its entry's dots.
+		moved += spacing * 3
+	}
 	tail := float32(min(max(0.12*speed, 14), 32)) * unit
 	fade := flowFade * unit
 	strength := float32(min(level/rateFlowMin, 1))
@@ -187,11 +198,11 @@ func smoothstep(lo, hi, x float32) float32 {
 	return t * t * (3 - 2*t)
 }
 
-// drawFlowDots paints the line's dots: a fading tail behind a round head,
-// in tone, solid over bg.
-func drawFlowDots(p *ui.Painter, path topoPath, line *topoFlowLine, unit float32, tone, bg ui.Color) {
+// drawFlowDots paints a line's dots, travelled along it at speed and
+// level: a fading tail behind a round head, in tone, solid over bg.
+func drawFlowDots(p *ui.Painter, path topoPath, travelled, speed, level float64, unit float32, tone, bg ui.Color) {
 	length := path.length()
-	for _, d := range flowDots(length, line.travelled, line.speed(), line.level, unit) {
+	for _, d := range flowDots(length, travelled, speed, level, unit) {
 		head := d.head
 		// The tail, in steps brightening toward the head.
 		const steps = 4

@@ -69,3 +69,32 @@ func TestFlowDotsKeepPlace(t *testing.T) {
 		}
 	}
 }
+
+// A rule's exit line continues its entry's dots: a dot that has left the
+// entry, length long, is as far along the exit, whatever the travel.
+func TestFlowDotsContinue(t *testing.T) {
+	const entry = 170
+	for _, travelled := range []float64{3, 400, 12345.5} {
+		var into []float32
+		for _, d := range flowDots(10000, travelled, 50, 1, 1) {
+			if d.head > entry && d.head < entry+200 {
+				into = append(into, d.head-entry)
+			}
+		}
+		exit := map[float32]bool{}
+		for _, d := range flowDots(10000, travelled-entry, 50, 1, 1) {
+			exit[d.head] = true
+		}
+		for _, head := range into {
+			found := false
+			for h := range exit {
+				if h-head < 0.01 && head-h < 0.01 {
+					found = true
+				}
+			}
+			if !found && head > flowFade {
+				t.Errorf("travelled %v: no exit dot at %v", travelled, head)
+			}
+		}
+	}
+}

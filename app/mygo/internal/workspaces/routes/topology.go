@@ -174,7 +174,11 @@ func (w *Workspace) drawTopology(p *ui.Painter, r ui.Rect, k *kit.Tokens, g *top
 	}
 	w.flows.begin()
 	fastest := 0.0
-	edge := func(key string, pts [][2]float32, lit bool, decided bool, enabled bool, flow float32, tone ui.Color) {
+	// edge paints a line of a rule: its base, then, while the rule is busy,
+	// a tint along it and the dots of line, from along on. A rule's two
+	// lines share its dots, the exit's continuing the entry's, and both
+	// take its tint, so the way through it reads as one.
+	edge := func(pts [][2]float32, lit bool, decided bool, enabled bool, flow float32, tone ui.Color, line *topoFlowLine, along float32) float32 {
 		switch {
 		case paths == nil && enabled:
 			p.StrokePolyline(pts, 1.25*thin, solid(k.Hairline))
@@ -187,8 +191,9 @@ func (w *Workspace) drawTopology(p *ui.Painter, r ui.Rect, k *kit.Tokens, g *top
 		default:
 			p.StrokePolyline(pts, thin, solid(k.HairlineSoft.Alpha(0.6)))
 		}
+		path := measureTopoPath(pts)
 		if !enabled {
-			return
+			return path.length()
 		}
 		if still {
 			// With less motion a busy line holds a steady tint.
@@ -196,15 +201,15 @@ func (w *Workspace) drawTopology(p *ui.Painter, r ui.Rect, k *kit.Tokens, g *top
 				flowing = true
 				p.StrokePolyline(pts, 2*thin, solid(tone.Alpha(0.5+0.4*flow)))
 			}
-			return
+			return path.length()
 		}
-		line := w.flows.step(key, flow, now)
-		if !line.visible() {
-			return
+		if line == nil || !line.visible() {
+			return path.length()
 		}
 		flowing = true
-		fastest = max(fastest, line.speed())
-		drawFlowDots(p, measureTopoPath(pts), line, thin, tone, k.Canvas)
+		p.StrokePolyline(pts, 1.75*thin, solid(tone.Alpha(line.tint())))
+		drawFlowDots(p, path, line.travelled-float64(along/thin), line.speed(), line.level, thin, tone, k.Canvas)
+		return path.length()
 	}
 	ex, ey := l.entry.right()
 	for _, rule := range g.rules() {
@@ -221,12 +226,19 @@ func (w *Workspace) drawTopology(p *ui.Painter, r ui.Rect, k *kit.Tokens, g *top
 		if rule.action == model.ActionReject {
 			tone = k.Danger
 		}
+		var line *topoFlowLine
+		if rule.enabled && !still {
+			line = w.flows.step(rule.id, flow, now)
+			if line.visible() {
+				fastest = max(fastest, line.speed())
+			}
+		}
 		lx, ly := box.left()
-		edge(rule.id+"/in", curve(ex, ey, lx, ly), state.reaching(), state == pathDecided, rule.enabled, flow, tone)
+		entry := edge(curve(ex, ey, lx, ly), state.reaching(), state == pathDecided, rule.enabled, flow, tone, line, 0)
 		if out, ok := l.exits[rule.exit]; ok && rule.exit != "" {
 			rx, ry := box.right()
 			ox, oy := out.left()
-			edge(rule.id+"/out", curve(rx, ry, ox, oy), state.taking(), state == pathDecided, rule.enabled, flow, tone)
+			edge(curve(rx, ry, ox, oy), state.taking(), state == pathDecided, rule.enabled, flow, tone, line, entry)
 		}
 	}
 	w.flows.end()
