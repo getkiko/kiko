@@ -347,6 +347,14 @@ func (c *Client) TailscaleExitNode(ctx context.Context, tag, stableID string) er
 	return c.Send(ctx, http.MethodPost, "/tailscale/exit-node", map[string]string{"endpointTag": tag, "stableID": stableID}, nil)
 }
 
+// BrowserOpen opens url, the home page when empty, in a browser whose
+// connections all go through outbound, the tag in the running core:
+// engine "webview" the built-in browser, "chrome" Chrome.
+func (c *Client) BrowserOpen(ctx context.Context, outbound, engine, url string) error {
+	body := map[string]string{"outbound": outbound, "engine": engine, "url": url}
+	return c.Send(ctx, http.MethodPost, "/browser/open", body, nil)
+}
+
 // TailscaleReconnect restarts the endpoint's connection to its control
 // server, keeping the login.
 func (c *Client) TailscaleReconnect(ctx context.Context, tag string) error {

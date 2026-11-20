@@ -281,6 +281,7 @@ func (s *server) registerEndpointRoutes(m *routeMux) {
 	m.handle("POST /api/v1/tailscale/exit-node", routeWrite, "切换出口节点", s.tailscaleExitNode)
 	m.handle("POST /api/v1/tailscale/logout", routeWrite, "退出 Tailscale", s.tailscaleLogout)
 	m.handle("POST /api/v1/tailscale/reconnect", routeWrite, "重新连接 Tailscale", s.tailscaleReconnect)
+	m.handle("POST /api/v1/browser/open", routeWrite, "打开代理浏览器", s.handleBrowserOpen)
 	m.handle("POST /api/v1/tailscale/ping", routeRead, "", s.tailscalePing)
 	m.get("GET /api/v1/tailscale/diagnostics", s.tailscaleDiagnostics)
 	m.get("GET /api/v1/tailscale/ssh", s.tailscaleSSH)

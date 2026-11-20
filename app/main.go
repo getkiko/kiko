@@ -103,51 +103,53 @@ type server struct {
 	controlMu                   sync.Mutex
 	systemDNSMu                 sync.Mutex
 	singBox, dataDir, sbVersion string
-	store                       storeState
-	persisted                   persistedRuntime
-	state                       runtimeState
-	cmd                         *exec.Cmd
-	helperPID                   int
-	stopping                    bool
-	stopDone                    chan struct{}
-	startCancel                 context.CancelFunc
-	coreDone                    chan struct{}
-	coreStopped                 chan struct{}
-	retry                       int
-	restartTimer                *time.Timer
-	restartGeneration           uint64
-	restartAt                   time.Time
-	logs                        *logBuffer
-	events                      map[chan string]struct{}
-	clashAddr, clashSecret      string
-	usePrivilegedHelper         bool
-	autoStart                   bool
-	disableTailscaleUDPDirect   bool
-	metricsSampleAt             time.Time
-	metricsUploadTotal          uint64
-	metricsDownloadTotal        uint64
-	listenAddr                  string
-	shutdownToken               string
-	shutdownCancel              context.CancelFunc
-	shutdownCh                  chan struct{}
-	shutdownOnce                sync.Once
-	shuttingDown                bool
-	restoreSystemDNS            func() error
-	sys                         sysProxyState
-	rpc                         grpcState
-	mitm                        mitmState
-	connections                 connectionHistory
-	connQuery                   connectionQueryState
-	processMonitor              *processMonitor
-	td                          taildropTasks
-	ep                          endpointState
-	usb                         usbipShare
-	sync                        syncRuntime
-	usage                       *usageStore
-	ruleMap                     ruleMapState
-	remote                      *remoteManager
-	gateOnce                    sync.Once
-	gate                        *writeGate
+	// browsers are the browsers opened through one outbound (browser.go).
+	browsers                  browsers
+	store                     storeState
+	persisted                 persistedRuntime
+	state                     runtimeState
+	cmd                       *exec.Cmd
+	helperPID                 int
+	stopping                  bool
+	stopDone                  chan struct{}
+	startCancel               context.CancelFunc
+	coreDone                  chan struct{}
+	coreStopped               chan struct{}
+	retry                     int
+	restartTimer              *time.Timer
+	restartGeneration         uint64
+	restartAt                 time.Time
+	logs                      *logBuffer
+	events                    map[chan string]struct{}
+	clashAddr, clashSecret    string
+	usePrivilegedHelper       bool
+	autoStart                 bool
+	disableTailscaleUDPDirect bool
+	metricsSampleAt           time.Time
+	metricsUploadTotal        uint64
+	metricsDownloadTotal      uint64
+	listenAddr                string
+	shutdownToken             string
+	shutdownCancel            context.CancelFunc
+	shutdownCh                chan struct{}
+	shutdownOnce              sync.Once
+	shuttingDown              bool
+	restoreSystemDNS          func() error
+	sys                       sysProxyState
+	rpc                       grpcState
+	mitm                      mitmState
+	connections               connectionHistory
+	connQuery                 connectionQueryState
+	processMonitor            *processMonitor
+	td                        taildropTasks
+	ep                        endpointState
+	usb                       usbipShare
+	sync                      syncRuntime
+	usage                     *usageStore
+	ruleMap                   ruleMapState
+	remote                    *remoteManager
+	gateOnce                  sync.Once
+	gate                      *writeGate
 }
 
 type stopTarget struct {
@@ -1776,6 +1778,7 @@ func (s *server) shutdown() {
 		s.shuttingDown = true
 		s.mu.Unlock()
 		s.mitmShareStop()
+		s.closeBrowsers()
 		if s.shutdownCh != nil {
 			close(s.shutdownCh)
 		}

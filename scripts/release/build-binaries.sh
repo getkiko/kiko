@@ -48,6 +48,14 @@ echo "==> kiko-core $core_version ($goos/$goarch)"
   -o "$out/kiko-core$exe" ./cmd/sing-box)
 
 if [ "$goos" = darwin ]; then
+  # The built-in browser, a WKWebView window through one outbound.
+  echo "==> kiko-browser ($goos/$goarch)"
+  case "$goarch" in arm64) clang_arch=arm64 ;; amd64) clang_arch=x86_64 ;; esac
+  clang -fobjc-arc -O2 -Wall -arch "$clang_arch" -mmacosx-version-min=12.0 \
+    "$root/app/packaging/browser/main.m" \
+    -framework Cocoa -framework WebKit -framework Network \
+    -o "$out/kiko-browser"
+
   echo "==> kiko-helper ($goos/$goarch)"
   (cd "$root/app" && CGO_ENABLED=0 GOOS=$goos GOARCH=$goarch go build -buildvcs=false -trimpath \
     -ldflags "-s -w -buildid=" -o "$out/kiko-helper" ./helper)

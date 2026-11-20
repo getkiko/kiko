@@ -326,6 +326,7 @@ func (s *outboundsSection) cardOptions(c *ui.Context, o *model.Outbound, title s
 // has a share link, and Delete, confirmed at the more button.
 func (s *outboundsSection) heroCard(c *ui.Context, o *model.Outbound, title string, opts kit.HeroCardOptions) {
 	id := o.ID
+	opts.Menu = append(opts.Menu, s.browserItems(o)...)
 	if _, ok := subscription.FormatOutboundLink(o); ok {
 		opts.Menu = append(opts.Menu, kit.EntityMenuItem{Label: "复制链接", Icon: kit.SymCopy, Run: func(ui.Element) { s.copyLink(c, o) }})
 	}

@@ -30,6 +30,8 @@ prepare:
 	cp ../helperpaths/versions.json "$(STAGE)/helper/versions.json"
 	cp ../packaging/mygo/install-helper.sh "$(STAGE)/helper/install-helper.sh"
 ifeq ($(GOOS),darwin)
+	test -x "$(BINARY_DIR)/kiko-browser"
+	cp "$(BINARY_DIR)/kiko-browser" "$(PLATFORM_RESOURCES)/bin/"
 	test -x "$(BINARY_DIR)/kiko-helper"
 	mkdir -p "$(PLATFORM_RESOURCES)/helper"
 	cp "$(BINARY_DIR)/kiko-helper" "$(PLATFORM_RESOURCES)/helper/"
