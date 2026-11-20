@@ -4,10 +4,13 @@ test:
 	$(MAKE) -C app/mygo test
 
 # kiko-core is built from the core/ submodule (a sing-box fork). Its version
-# output keeps the upstream "sing-box version <x>" format.
+# output keeps the upstream "sing-box version <x>" format. The version comes
+# from the submodule's git history, or from KIKO_CORE_VERSION for a copy of
+# the tree without it (a build host the sources were synced to).
 core:
 	mkdir -p app/build/core
-	core_version="$$(cd core && CGO_ENABLED=0 go run ./cmd/internal/read_tag)" && \
+	core_version="$${KIKO_CORE_VERSION:-$$(cd core && CGO_ENABLED=0 go run ./cmd/internal/read_tag)}" && \
+	case "$$core_version" in "" | unknown) echo "cannot read the kiko-core version: check out core/ with its history and tags, or set KIKO_CORE_VERSION" >&2; exit 1 ;; esac && \
 	cd core && go build -trimpath \
 		-tags "$$(cat release/DEFAULT_BUILD_TAGS_OTHERS)" \
 		-ldflags "-X github.com/sagernet/sing-box/constant.Version=$$core_version $$(cat release/LDFLAGS) -s -w -buildid=" \

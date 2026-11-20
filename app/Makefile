@@ -7,7 +7,7 @@ KIKO_CORE ?= $(CURDIR)/$(MAC_PACKAGE_DIR)/kiko-core
 REPO_ROOT := $(abspath ../core)
 CORE_TAGS := $(shell cat $(REPO_ROOT)/release/DEFAULT_BUILD_TAGS_OTHERS)
 CORE_LDFLAGS := $(shell cat $(REPO_ROOT)/release/LDFLAGS)
-CORE_VERSION := $(shell cd $(REPO_ROOT) && CGO_ENABLED=0 go run ./cmd/internal/read_tag)
+CORE_VERSION := $(or $(KIKO_CORE_VERSION),$(shell cd $(REPO_ROOT) && CGO_ENABLED=0 go run ./cmd/internal/read_tag))
 LINUX_ARCH ?= arm64
 LINUX_DEPLOY_DIR = $(CURDIR)/build/deploy-linux-$(LINUX_ARCH)
 ANDROID_NDK ?= $(lastword $(sort $(wildcard $(HOME)/Library/Android/sdk/ndk/* $(HOME)/Android/Sdk/ndk/*)))
