@@ -402,20 +402,18 @@ func (w *Workspace) identityForm(c *ui.Context, doc *model.Doc, e *ruleEditor) {
 			if e.dns {
 				options = []kit.Option{{Value: model.ActionRoute, Label: "使用 DNS 服务器"}, {Value: model.ActionReject, Label: "拒绝查询"}, {Value: model.ActionScript, Label: "脚本应答"}}
 			} else {
-				options = []kit.Option{{Value: model.ActionRoute, Label: "转发到出口"}, {Value: model.ActionReject, Label: "拒绝连接"}, {Value: model.ActionResolve, Label: "解析域名"}}
-				if !e.isNew && e.action == model.ActionSniff {
-					options = append(options, kit.Option{Value: model.ActionSniff, Label: "协议嗅探（已有规则）"})
-				}
+				// A sniff rule matters for its "Override destination": every
+				// connection is sniffed by the built-in rule already.
+				options = []kit.Option{{Value: model.ActionRoute, Label: "转发到出口"}, {Value: model.ActionReject, Label: "拒绝连接"},
+					{Value: model.ActionResolve, Label: "解析域名"}, {Value: model.ActionSniff, Label: "协议嗅探"}}
 				if !e.isNew && e.action == model.ActionHijackDNS {
 					options = append(options, kit.Option{Value: model.ActionHijackDNS, Label: "DNS 接管（已有规则）"})
 				}
 			}
 			value := e.actionValue()
 			if kit.Select(c, "action", &value, options, kit.SelectOptions{Label: "规则动作"}).Grow(1).Changed() {
-				if value == model.ActionSniff || value == model.ActionHijackDNS {
-					if value != e.action {
-						return
-					}
+				if value == model.ActionHijackDNS && value != e.action {
+					return
 				}
 				e.setAction(value)
 			}
@@ -439,7 +437,11 @@ func (w *Workspace) identityForm(c *ui.Context, doc *model.Doc, e *ruleEditor) {
 		}
 		if !e.dns && e.route.Action == model.ActionSniff {
 			editorRow(c, "覆盖连接目标", func() {
-				kit.Switch(c, &e.route.OverrideDestination, "覆盖连接目标")
+				ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+					kit.Switch(c, &e.route.OverrideDestination, "覆盖连接目标")
+					ui.Text(c, "用嗅探到的域名连接，由出口（代理服务器）解析域名").FontSize(kit.FontCaption).
+						TextColor(kit.T(c).Label3).MinWidth(0).Shrink(1)
+				})
 			})
 		}
 	})

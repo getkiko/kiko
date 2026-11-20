@@ -339,3 +339,33 @@ func TestEmitTailscaleUDPPathNeedsDetour(t *testing.T) {
 		}
 	}
 }
+
+// A sniff rule with "Override destination" follows the built-in sniff and
+// carries override_destination; the core then connects by the sniffed
+// domain although the connection was sniffed already.
+func TestEmitSniffOverrideRule(t *testing.T) {
+	d := doc()
+	group := model.RouteGroupsOf(d, model.PreDeviceID)[0].ID
+	d.Route.Rules = []*model.RouteRule{
+		{ID: "s", DeviceID: model.PreDeviceID, GroupID: group, Enabled: true, Match: map[string]any{"process_name": []any{"Telegram"}},
+			Action: model.ActionSniff, OverrideDestination: true},
+	}
+	r := emit.Emit(d, emit.Options{})
+	if len(r.Errors) != 0 {
+		t.Fatalf("errors %v", r.Errors)
+	}
+	rules := r.Config["route"].(map[string]any)["rules"].([]any)
+	if rules[0].(map[string]any)["action"] != "sniff" || rules[0].(map[string]any)["override_destination"] != nil {
+		t.Fatalf("built-in sniff %v", rules[0])
+	}
+	found := false
+	for _, raw := range rules[1:] {
+		rule := raw.(map[string]any)
+		if rule["action"] == "sniff" && rule["override_destination"] == true {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no sniff rule with override_destination in %v", rules)
+	}
+}
