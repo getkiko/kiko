@@ -53,14 +53,11 @@ func centeredX(title ui.Rect, width int) float32 {
 	return x
 }
 
-// The page has no title: its first card starts at the title's height,
+// The page has no title: its first card starts cardsTop down, at the title's inset,
 // the page centered in wide workspaces as before F18 (1180 is the
 // default window's).
 func TestCardsStartWhereTheTitleStood(t *testing.T) {
 	title := formerTitle(t)
-	if !near(title.Y, cardsTop) {
-		t.Fatalf("the toolbar's title starts at y=%v, the cards at %v", title.Y, cardsTop)
-	}
 	f := runningFixture(t)
 	for _, width := range []int{760, 980, 1180, 1192, 1320, 1600, 1728} {
 		f.tt.SetSize(width, 800)
@@ -73,8 +70,8 @@ func TestCardsStartWhereTheTitleStood(t *testing.T) {
 			t.Fatalf("width %d: no state card: %q", width, f.tt.Texts())
 		}
 		wantX := centeredX(title, width)
-		if !near(card.X, wantX) || !near(card.Y, title.Y) {
-			t.Errorf("width %d: the first card starts at (%v, %v), want (%v, %v)", width, card.X, card.Y, wantX, title.Y)
+		if !near(card.X, wantX) || !near(card.Y, cardsTop) {
+			t.Errorf("width %d: the first card starts at (%v, %v), want (%v, %v)", width, card.X, card.Y, wantX, float32(cardsTop))
 		}
 		// Where the first card stood before F18, measured.
 		if measured, ok := map[int]float32{980: 20, 1320: 104, 1600: 244}[width]; ok && !near(card.X, measured) {
@@ -86,8 +83,8 @@ func TestCardsStartWhereTheTitleStood(t *testing.T) {
 	}
 }
 
-// The apply card, when there is one, is the first card and starts at the
-// title's height, centered as the page; the dashboard follows 16 DIPs
+// The apply card, when there is one, is the first card and starts
+// cardsTop down, centered as the page; the dashboard follows 16 DIPs
 // below it, as before.
 func TestApplyCardStartsWhereTheTitleStood(t *testing.T) {
 	title := formerTitle(t)
@@ -102,8 +99,8 @@ func TestApplyCardStartsWhereTheTitleStood(t *testing.T) {
 			t.Fatalf("width %d: no apply card: %q", width, f.tt.Texts())
 		}
 		wantX := centeredX(title, width)
-		if !near(card.X, wantX) || !near(card.Y, title.Y) {
-			t.Errorf("width %d: the apply card starts at (%v, %v), want (%v, %v)", width, card.X, card.Y, wantX, title.Y)
+		if !near(card.X, wantX) || !near(card.Y, cardsTop) {
+			t.Errorf("width %d: the apply card starts at (%v, %v), want (%v, %v)", width, card.X, card.Y, wantX, float32(cardsTop))
 		}
 		state, _ := f.tt.Find("核心状态")
 		if gap := state.Y - (card.Y + card.H); !near(gap, 16) {

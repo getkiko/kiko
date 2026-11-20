@@ -22,11 +22,10 @@ import (
 // pageWidth is the most the page's content spreads (max-w-6xl).
 const pageWidth = 1152
 
-// cardsTop is where the first card starts: where the 16 DIP title of a
-// kit.Toolbar starts, so the cards begin where the page's title stood.
-// The title's line is 18.84375 DIPs, centered in the kit.ToolbarHeight
-// row. A strip dragging the window fills the room above the page.
-const cardsTop = (kit.ToolbarHeight - 18.84375) / 2
+// cardsTop is where the first card starts, leaving the page some air
+// below the window's top edge. A strip dragging the window fills the room
+// above the page.
+const cardsTop = 40
 
 // cardShadowRoom is the page's top padding inside the scroll, which
 // clips: room for the shadow above the first row of cards.
