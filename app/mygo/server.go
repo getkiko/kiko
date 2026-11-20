@@ -88,6 +88,9 @@ func (s *serverSupervisor) launch(ctx context.Context) (supervisor.Process, erro
 	if err := os.MkdirAll(s.paths.dataDir(), 0o700); err != nil {
 		return nil, err
 	}
+	if err := s.clearStaleServer(ctx); err != nil {
+		return nil, err
+	}
 
 	args := []string{
 		"--core", core,
