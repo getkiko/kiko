@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"math"
 	"slices"
 	"strings"
 	"time"
@@ -156,9 +155,10 @@ func (w *Workspace) topologyView(c *ui.Context, doc *model.Doc) {
 }
 
 // drawTopology paints the canvas: its dots, and the lines from the entry
-// to each rule and from each rule to its exit. Lines flow while the rule
-// takes connections, faster the more; a test lights the paths its sample
-// may take and dims the others.
+// to each rule and from each rule to its exit. Dots run along a rule's
+// lines while it takes connections, faster and more of them the more
+// (topology_flow.go); a test lights the paths its sample may take and
+// dims the others.
 func (w *Workspace) drawTopology(p *ui.Painter, r ui.Rect, k *kit.Tokens, g *topoGraph, l topoLayout, paths *topoPaths, still bool, zoom float32) {
 	// Zoomed out, thin lines keep their width on screen.
 	thin := max(1, 1/zoom)
@@ -172,12 +172,9 @@ func (w *Workspace) drawTopology(p *ui.Painter, r ui.Rect, k *kit.Tokens, g *top
 	curve := func(x1, y1, x2, y2 float32) [][2]float32 {
 		return topoCurve(r.X+x1, r.Y+y1, r.X+x2, r.Y+y2)
 	}
-	edge := func(pts [][2]float32, lit bool, decided bool, enabled bool, flow float32, tone ui.Color) {
-		moving := flow > 0 && enabled
-		if moving {
-			flowing = true
-			p.StrokePolyline(pts, 5*thin, solid(tone.Alpha(0.1+0.15*flow)))
-		}
+	w.flows.begin()
+	fastest := 0.0
+	edge := func(key string, pts [][2]float32, lit bool, decided bool, enabled bool, flow float32, tone ui.Color) {
 		switch {
 		case paths == nil && enabled:
 			p.StrokePolyline(pts, 1.25*thin, solid(k.Hairline))
@@ -190,16 +187,24 @@ func (w *Workspace) drawTopology(p *ui.Painter, r ui.Rect, k *kit.Tokens, g *top
 		default:
 			p.StrokePolyline(pts, thin, solid(k.HairlineSoft.Alpha(0.6)))
 		}
-		if !moving {
+		if !enabled {
 			return
 		}
 		if still {
-			p.StrokePolyline(pts, 2*thin, solid(tone.Alpha(0.5+0.4*flow)))
+			// With less motion a busy line holds a steady tint.
+			if flow > 0 {
+				flowing = true
+				p.StrokePolyline(pts, 2*thin, solid(tone.Alpha(0.5+0.4*flow)))
+			}
 			return
 		}
-		speed := 24 + 72*float64(flow)
-		phase := float32(math.Mod(float64(now.UnixNano())/1e9*speed, 12)) * thin
-		p.StrokePolyline(topoDashes(pts, phase, 3*thin, 12*thin), 2*thin, solid(tone.Alpha(0.65+0.35*flow)))
+		line := w.flows.step(key, flow, now)
+		if !line.visible() {
+			return
+		}
+		flowing = true
+		fastest = max(fastest, line.speed())
+		drawFlowDots(p, measureTopoPath(pts), line, thin, tone, k.Canvas)
 	}
 	ex, ey := l.entry.right()
 	for _, rule := range g.rules() {
@@ -217,17 +222,21 @@ func (w *Workspace) drawTopology(p *ui.Painter, r ui.Rect, k *kit.Tokens, g *top
 			tone = k.Danger
 		}
 		lx, ly := box.left()
-		edge(curve(ex, ey, lx, ly), state.reaching(), state == pathDecided, rule.enabled, flow, tone)
+		edge(rule.id+"/in", curve(ex, ey, lx, ly), state.reaching(), state == pathDecided, rule.enabled, flow, tone)
 		if out, ok := l.exits[rule.exit]; ok && rule.exit != "" {
 			rx, ry := box.right()
 			ox, oy := out.left()
-			edge(curve(rx, ry, ox, oy), state.taking(), state == pathDecided, rule.enabled, flow, tone)
+			edge(rule.id+"/out", curve(rx, ry, ox, oy), state.taking(), state == pathDecided, rule.enabled, flow, tone)
 		}
 	}
+	w.flows.end()
 	switch {
 	case flowing && still:
 		// To go still as the rules' traffic ends.
 		p.After(time.Second)
+	case flowing && fastest > 60:
+		// Fast dots step too far between frames at 30.
+		p.AnimationFrameRate(60)
 	case flowing:
 		p.AnimationFrameRate(30)
 	}
@@ -595,39 +604,4 @@ func topoCurve(x1, y1, x2, y2 float32) [][2]float32 {
 		pts[i] = [2]float32{a*x1 + b*(x1+dx) + c*(x2-dx) + d*x2, (a+b)*y1 + (c+d)*y2}
 	}
 	return pts
-}
-
-// topoDashes are the dashes, on long every period from phase on, along
-// the line through pts, apart where StrokePolyline breaks a line (NaN).
-func topoDashes(pts [][2]float32, phase, on, period float32) [][2]float32 {
-	if len(pts) < 2 || period <= 0 {
-		return nil
-	}
-	lengths := make([]float32, len(pts))
-	for i := 1; i < len(pts); i++ {
-		dx, dy := pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]
-		lengths[i] = lengths[i-1] + float32(math.Hypot(float64(dx), float64(dy)))
-	}
-	total := lengths[len(lengths)-1]
-	at := func(s float32) [2]float32 {
-		i := 1
-		for i < len(pts)-1 && lengths[i] < s {
-			i++
-		}
-		span := lengths[i] - lengths[i-1]
-		if span <= 0 {
-			return pts[i]
-		}
-		f := (s - lengths[i-1]) / span
-		return [2]float32{pts[i-1][0] + (pts[i][0]-pts[i-1][0])*f, pts[i-1][1] + (pts[i][1]-pts[i-1][1])*f}
-	}
-	nan := float32(math.NaN())
-	var out [][2]float32
-	for d := float32(math.Mod(float64(phase), float64(period))) - period; d < total; d += period {
-		from, to := max(d, 0), min(d+on, total)
-		if to > from {
-			out = append(out, at(from), at(to), [2]float32{nan, nan})
-		}
-	}
-	return out
 }

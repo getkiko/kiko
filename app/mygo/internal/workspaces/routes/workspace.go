@@ -42,7 +42,9 @@ type Workspace struct {
 
 	// hits are the traffic rules' hit lights, followed while the page
 	// shows (followHits).
-	hits            ruleHits
+	hits ruleHits
+	// flows are the topology's moving lines between frames.
+	flows           topoFlows
 	unsubscribeHits func()
 	// conns is the Current Connections list of the topology's rule preview.
 	conns ruleConns
