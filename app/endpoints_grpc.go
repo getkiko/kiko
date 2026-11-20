@@ -280,6 +280,7 @@ func (s *server) registerEndpointRoutes(m *routeMux) {
 	m.get("GET /api/v1/endpoints/status", s.endpointsStatus)
 	m.handle("POST /api/v1/tailscale/exit-node", routeWrite, "切换出口节点", s.tailscaleExitNode)
 	m.handle("POST /api/v1/tailscale/logout", routeWrite, "退出 Tailscale", s.tailscaleLogout)
+	m.handle("POST /api/v1/tailscale/reconnect", routeWrite, "重新连接 Tailscale", s.tailscaleReconnect)
 	m.handle("POST /api/v1/tailscale/ping", routeRead, "", s.tailscalePing)
 	m.get("GET /api/v1/tailscale/diagnostics", s.tailscaleDiagnostics)
 	m.get("GET /api/v1/tailscale/ssh", s.tailscaleSSH)
@@ -388,6 +389,18 @@ func (s *server) tailscaleExitNode(w http.ResponseWriter, r *http.Request) {
 func (s *server) tailscaleLogout(w http.ResponseWriter, r *http.Request) {
 	rpcCall(s, w, r, func(ctx context.Context, client daemon.StartedServiceClient, in *endpointTagBody) error {
 		_, err := client.TailscaleLogout(ctx, &daemon.TailscaleLogoutRequest{EndpointTag: in.EndpointTag})
+		return err
+	})
+}
+
+// tailscaleReconnect restarts the endpoint's connection to its control
+// server; a core without it answers that it needs updating.
+func (s *server) tailscaleReconnect(w http.ResponseWriter, r *http.Request) {
+	rpcCall(s, w, r, func(ctx context.Context, client daemon.StartedServiceClient, in *endpointTagBody) error {
+		_, err := client.TailscaleReconnect(ctx, &daemon.TailscaleReconnectRequest{EndpointTag: in.EndpointTag})
+		if status.Code(err) == codes.Unimplemented {
+			return errors.New("当前核心不支持重新连接 Tailscale，请更新 kiko-core")
+		}
 		return err
 	})
 }

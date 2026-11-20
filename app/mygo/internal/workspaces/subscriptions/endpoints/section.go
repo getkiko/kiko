@@ -60,8 +60,10 @@ type Section struct {
 	// tailnet is the Tailscale endpoint's state and control sheet for
 	// the Overview card.
 	tailnet *TailscalePanel
-	tunnel  tunnelSheet
-	usbip   usbipSheet
+	// reconnects are the Tailscale endpoints reconnecting.
+	reconnects reconnects
+	tunnel     tunnelSheet
+	usbip      usbipSheet
 }
 
 // New returns the section.

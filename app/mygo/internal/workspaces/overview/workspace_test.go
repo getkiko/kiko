@@ -471,3 +471,31 @@ func TestNoTailscaleCard(t *testing.T) {
 		t.Fatal("endpoint state followed without a card")
 	}
 }
+
+// TestTailscaleReconnect: a lost control connection offers "Reconnect"
+// on the card; it asks the core to reconnect, without opening the sheet,
+// and shows it under way; back online, the button leaves.
+func TestTailscaleReconnect(t *testing.T) {
+	f := newFixtureWith(t, tailscaleDoc())
+	testkit.Until(t, f.tt, func() bool { _, ok := f.tt.Find(tailscaleLabel); return ok })
+	f.srv.Route("POST", "/tailscale/reconnect", testkit.JSON(map[string]any{}))
+	emit := func(online bool) {
+		f.srv.Emit("tailscale", map[string]any{"endpoints": []map[string]any{{
+			"endpointTag": "Tailscale", "backendState": "Running", "observedAt": fmt.Sprint(time.Now().UnixMilli()),
+			"self": map[string]any{"hostName": "me", "dnsName": "me.tail.ts.net.", "tailscaleIPs": []string{"100.64.0.1"}, "online": online},
+		}}})
+	}
+	emit(false)
+	testkit.UntilText(t, f.tt, "控制连接已断开")
+	savePreview(t, f.tt, "overview-tailscale-reconnect.png")
+	f.click(t, "重新连接")
+	testkit.UntilText(t, f.tt, "重新连接中…")
+	testkit.Until(t, f.tt, func() bool { return slices.Contains(f.srv.Requests(), "POST /api/v1/tailscale/reconnect") })
+	if f.w.Tailscale.Opened() != "" {
+		t.Fatal("the reconnect button opened the sheet")
+	}
+	emit(true)
+	testkit.Until(t, f.tt, func() bool {
+		return f.tt.HasText("控制连接在线") && !f.tt.HasText("重新连接中…") && !f.tt.HasText("重新连接")
+	})
+}

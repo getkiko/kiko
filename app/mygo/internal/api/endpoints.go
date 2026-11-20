@@ -347,6 +347,12 @@ func (c *Client) TailscaleExitNode(ctx context.Context, tag, stableID string) er
 	return c.Send(ctx, http.MethodPost, "/tailscale/exit-node", map[string]string{"endpointTag": tag, "stableID": stableID}, nil)
 }
 
+// TailscaleReconnect restarts the endpoint's connection to its control
+// server, keeping the login.
+func (c *Client) TailscaleReconnect(ctx context.Context, tag string) error {
+	return c.Send(ctx, http.MethodPost, "/tailscale/reconnect", endpointTag{tag}, nil)
+}
+
 // TailscaleLogout signs the endpoint out of its tailnet.
 func (c *Client) TailscaleLogout(ctx context.Context, tag string) error {
 	return c.Send(ctx, http.MethodPost, "/tailscale/logout", endpointTag{tag}, nil)

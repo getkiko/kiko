@@ -268,6 +268,10 @@ func (t *tailscaleSheet) view(c *ui.Context, tag string) {
 				infoRow(c, "状态", func() {
 					stateMark(c, connection.tone)
 					ui.Text(c, connection.text)
+					if reconnectable(true, connection) {
+						busy := t.s.reconnects.busy(tag, time.Now())
+						t.s.tailnet.ReconnectButton(c, TailscaleSummary{Reconnect: true, Reconnecting: busy, tag: tag})
+					}
 				})
 				for i, message := range status.Health {
 					d := tailscaleHealthDiagnostic(message)

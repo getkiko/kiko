@@ -103,6 +103,11 @@ func (f *fakeEndpoints) TailscaleLogout(_ context.Context, request *daemon.Tails
 	return &emptypb.Empty{}, nil
 }
 
+func (f *fakeEndpoints) TailscaleReconnect(_ context.Context, request *daemon.TailscaleReconnectRequest) (*emptypb.Empty, error) {
+	f.record("reconnect:" + request.EndpointTag)
+	return &emptypb.Empty{}, nil
+}
+
 func (f *fakeEndpoints) GetTailscaleDiagnostics(_ context.Context, request *daemon.TailscaleDiagnosticsRequest) (*daemon.TailscaleDiagnostics, error) {
 	if request.EndpointTag == "bad" {
 		return nil, status.Error(codes.FailedPrecondition, "endpoint does not support tailscale diagnostics")
@@ -379,7 +384,10 @@ func TestTailscaleRoutes(t *testing.T) {
 	if rec := postJSON(s.tailscaleLogout, "POST", `{"endpointTag":"ts"}`); rec.Code != 200 {
 		t.Fatalf("logout code=%d", rec.Code)
 	}
-	if got := strings.Join(fake.recorded(), ","); got != "exit:ts:n123,exit:ts:,logout:ts" {
+	if rec := postJSON(s.tailscaleReconnect, "POST", `{"endpointTag":"ts"}`); rec.Code != 200 {
+		t.Fatalf("reconnect code=%d", rec.Code)
+	}
+	if got := strings.Join(fake.recorded(), ","); got != "exit:ts:n123,exit:ts:,logout:ts,reconnect:ts" {
 		t.Fatalf("calls=%s", got)
 	}
 

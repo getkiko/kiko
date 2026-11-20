@@ -107,6 +107,9 @@ type TailscaleSummary struct {
 	Online int
 	// AuthURL is the login page while the endpoint waits for a login.
 	AuthURL string
+	// Reconnect offers to restart the control connection, a state it may
+	// mend; Reconnecting tells one is under way.
+	Reconnect, Reconnecting bool
 
 	// Motion is how the logo's dots move: breathing while online, flowing
 	// while connecting, still otherwise and with the core stopped.
@@ -114,6 +117,8 @@ type TailscaleSummary struct {
 
 	tone  stateTone
 	peers []tailnetPeer
+	// tag is the endpoint's tag in the running core.
+	tag string
 }
 
 // reConnectingState matches the backend states of a device on its way
@@ -154,12 +159,17 @@ func (p *TailscalePanel) Summary(c *ui.Context, tag string) TailscaleSummary {
 	if live != nil {
 		c.After(freshness)
 	}
-	return summarize(live, p.s.rt.lastTailscale[tag], time.Now())
+	now := time.Now()
+	m := summarize(live, p.s.rt.lastTailscale[tag], now)
+	m.tag = tag
+	m.Reconnecting = m.Reconnect && p.s.reconnects.busy(tag, now)
+	return m
 }
 
 func summarize(live, last *api.TailscaleStatus, now time.Time) TailscaleSummary {
 	line := tailscaleLine(live, now)
-	m := TailscaleSummary{Live: live != nil, State: line.text, tone: line.tone, Motion: tailscaleMotion(live, line)}
+	m := TailscaleSummary{Live: live != nil, State: line.text, tone: line.tone, Motion: tailscaleMotion(live, line),
+		Reconnect: reconnectable(live != nil, line)}
 	status := live
 	if status == nil {
 		status = last

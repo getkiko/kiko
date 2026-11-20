@@ -80,6 +80,9 @@ func (w *Workspace) tailscaleCard(c *ui.Context) {
 				tailscaleFact(c, "UDP 路径", m.UDPPath, value)
 			})
 		}
+		// A stuck control connection offers a reconnect on the card, as
+		// well as in its sheet.
+		p.ReconnectButton(c, m)
 		m.Avatars(c)
 		kit.Icon(c, kit.SymChevronRight, 16).TextColor(k.Label3)
 	})
