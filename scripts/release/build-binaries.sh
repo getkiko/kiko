@@ -27,14 +27,12 @@ out="$root/app/build/package-$package_os-$goarch"
 mkdir -p "$out"
 
 core="$root/core"
-core_version=$(cd "$core" && CGO_ENABLED=0 GOOS= GOARCH= go run ./cmd/internal/read_tag)
-# Release builds must carry the core's real version; a checkout without the
-# core's git history reports "unknown".
-if [ "${CI:-}" = true ]; then
-  case "$core_version" in
-    "" | unknown) echo "cannot read the core version; check out core/ with its history and tags" >&2; exit 1 ;;
-  esac
-fi
+# The core's version comes from its git history, or from KIKO_CORE_VERSION
+# for a copy of the tree without it. A build never carries "unknown".
+core_version=${KIKO_CORE_VERSION:-$(cd "$core" && CGO_ENABLED=0 GOOS= GOARCH= go run ./cmd/internal/read_tag)}
+case "$core_version" in
+  "" | unknown) echo "cannot read the core version: check out core/ with its history and tags, or set KIKO_CORE_VERSION" >&2; exit 1 ;;
+esac
 core_tags=$(cat "$core/release/DEFAULT_BUILD_TAGS_OTHERS")
 core_ldflags=$(cat "$core/release/LDFLAGS")
 
