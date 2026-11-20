@@ -15,15 +15,10 @@ func trayIconPNG() []byte {
 	const size, samples = 36, 4
 	type segment struct{ x0, y0, x1, y1 float64 }
 	// The stem, then the arms meeting it a little above the middle.
-	// The K sits on the baseline of the rates beside it: macOS centres the
-	// icon and the title each in the menu bar, and the menu bar font's
-	// digits end about 5 points below the middle, so the K is raised from
-	// the canvas's centre until its bottom meets theirs.
-	const raise = 3.5
 	strokes := []segment{
-		{11, 7 - raise, 11, 29 - raise},
-		{12.5, 19.5 - raise, 25.5, 7.5 - raise},
-		{16.5, 16.5 - raise, 26, 28.5 - raise},
+		{11, 7, 11, 29},
+		{12.5, 19.5, 25.5, 7.5},
+		{16.5, 16.5, 26, 28.5},
 	}
 	const radius = 2.9
 	img := image.NewNRGBA(image.Rect(0, 0, size, size))
