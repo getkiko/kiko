@@ -345,11 +345,13 @@ var editorMotion = ui.ElementTransition{Duration: 220 * time.Millisecond, Positi
 var discardMotion = ui.ElementTransition{Duration: 200 * time.Millisecond, Position: true,
 	Enter: &ui.Motion{Y: 14}, Exit: &ui.Motion{Y: 14}}
 
-// HoverMotion fades the background and border colors a control changes
-// on hover and press, which every hovered element takes:
+// HoverMotion is how the background and border colors a control changes
+// on hover and press go, which every hovered element takes: at once, as a
+// native list's or menu's highlight does, so that a row the pointer leaves
+// lets its color go without lagging behind it.
 //
 //	b.Transition(kit.HoverMotion)
-var HoverMotion = ui.ElementTransition{Duration: 90 * time.Millisecond, Colors: true}
+var HoverMotion = ui.ElementTransition{Duration: -1, Colors: true}
 
 // dialogsShown counts the dialogs built, so an editor sidebar knows a
 // dialog of its own is over it. Views build on the UI thread only; the
