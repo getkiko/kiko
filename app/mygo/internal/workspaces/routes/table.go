@@ -745,14 +745,13 @@ func outputOptions(doc *model.Doc) []kit.Option {
 // choice at once.
 func (w *Workspace) defaultOutboundSelect(c *ui.Context, doc *model.Doc) {
 	value := model.RouteFinalFor(doc, w.owner).ID()
-	var options []kit.Option
+	var lead []kit.Option
 	if final, ok := ownFinal(doc, w.owner); ok {
 		value = final
 	} else {
-		options = append(options, kit.Option{Value: "", Label: "核心默认"})
+		lead = append(lead, kit.Option{Value: "", Label: "核心默认"})
 	}
-	options = withUnknown(append(options, outputOptions(doc)...), value)
-	if kit.Select(c, "final", &value, options, kit.SelectOptions{Label: "默认出口", Placeholder: "请选择"}).Grow(1).Changed() {
+	if forms.OutboundSelect(c, "final", doc, &value, forms.OutboundSelectOptions{Label: "默认出口", Lead: lead}).Grow(1).Changed() {
 		owner := w.owner
 		w.save(func(doc *model.Doc) error {
 			next, err := model.SetRouteFinal(doc, owner, model.RefOf(value))
@@ -828,19 +827,7 @@ func detourSelect(c *ui.Context, key any, doc *model.Doc, server string, value *
 	if supports {
 		first = "直连（服务器拨号）"
 	}
-	options := []kit.Option{{Value: "", Label: first}}
-	if supports {
-		for _, r := range forms.DocRefOptions(doc) {
-			options = append(options, kit.Option{Value: r.ID, Label: r.Tag, Detail: upper(r.Type)})
-		}
-	}
-	found := false
-	for _, o := range options {
-		found = found || o.Value == *value
-	}
-	if !found {
-		options = append(options, kit.Option{Value: *value, Label: *value + " · 需修正引用"})
-	}
-	disabled := !supports && *value == ""
-	return kit.SearchSelect(c, key, value, options, kit.SearchSelectOptions{Label: label, Placeholder: "搜索出口名称或类型", Disabled: disabled}).Changed()
+	return forms.OutboundSelect(c, key, doc, value, forms.OutboundSelectOptions{
+		Label: label, Lead: []kit.Option{{Value: "", Label: first}}, NoTargets: !supports, Disabled: !supports && *value == "",
+	}).Changed()
 }

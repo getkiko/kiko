@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/getkiko/kiko/app/mygo/internal/kit"
 	"github.com/getkiko/kiko/app/mygo/internal/model"
+	"github.com/getkiko/kiko/app/mygo/internal/nodeview"
 	"github.com/getkiko/kiko/app/mygo/internal/schema"
 )
 
@@ -92,7 +93,7 @@ func chainChip(c *ui.Context, doc *model.Doc, chain *[]string, i int, id string,
 	t := model.FindOutboundTarget(doc, id)
 	name, detail := id, "已删除"
 	if t.Valid() {
-		name, detail = t.Tag(), protocolLabel(t.Type())
+		name, detail = t.Tag(), nodeview.ProtocolTag(t.Type())
 		if model.IsGroup(t.Type()) {
 			detail = "策略组"
 		}

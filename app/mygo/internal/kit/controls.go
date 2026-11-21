@@ -368,6 +368,9 @@ type Option struct {
 	Label string
 	// Detail shows muted after the label in the popup.
 	Detail string
+	// Tag is an outlined tag between the label and the detail in a search
+	// select's list, as an outbound's protocol.
+	Tag string
 }
 
 // SelectOptions shape a select.

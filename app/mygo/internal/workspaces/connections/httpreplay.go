@@ -12,8 +12,8 @@ import (
 	"github.com/getkiko/kiko/app/mygo/internal/api"
 	"github.com/getkiko/kiko/app/mygo/internal/emit"
 	"github.com/getkiko/kiko/app/mygo/internal/env"
+	"github.com/getkiko/kiko/app/mygo/internal/forms"
 	"github.com/getkiko/kiko/app/mygo/internal/kit"
-	"github.com/getkiko/kiko/app/mygo/internal/model"
 )
 
 // replayBodyLimit is the largest request body the dialog prefills.
@@ -195,28 +195,6 @@ func (f *replayForm) request() (api.ReplayRequest, error) {
 	return req, nil
 }
 
-// replayOutbounds are the outbound tags of the document the replay can
-// leave through, in the order of the outbound list.
-func replayOutbounds(doc *model.Doc) []string {
-	if doc == nil {
-		return nil
-	}
-	tags := emit.EmittedTags(doc).Outbounds
-	var out []string
-	add := func(id string) {
-		if tag := tags[id]; tag != "" && !slices.Contains(out, tag) {
-			out = append(out, tag)
-		}
-	}
-	for _, o := range model.OrderedOutbounds(doc) {
-		add(o.ID)
-	}
-	for _, e := range doc.Endpoints {
-		add(e.ID)
-	}
-	return out
-}
-
 // replayUpsert puts the record a replay returned into the store so that the
 // list shows it at once, ahead of the stream; a paused list shows it too.
 func (m *httpMonitor) replayUpsert(rec api.HTTPRecord) {
@@ -348,11 +326,13 @@ func (m *httpMonitor) replayDialog(c *ui.Context) {
 			}
 		})
 		kit.FormRow(c, "出站", "", func() {
-			options := []kit.Option{{Value: "", Label: "按路由规则"}}
-			for _, tag := range replayOutbounds(m.docOf()) {
-				options = append(options, kit.Option{Value: tag, Label: tag})
+			doc := m.docOf()
+			var tags map[string]string
+			if doc != nil {
+				tags = emit.EmittedTags(doc).Outbounds
 			}
-			kit.Select(c, "replay-outbound", &f.outbound, options, kit.SelectOptions{Width: 240, Label: "出站"})
+			forms.OutboundSelect(c, "replay-outbound", doc, &f.outbound, forms.OutboundSelectOptions{Width: 240, Label: "出站",
+				Lead: []kit.Option{{Value: "", Label: "按路由规则"}}, Tags: tags})
 		})
 		kit.FormRow(c, "校验证书", "", func() { kit.Switch(c, &f.verify, "校验证书开关") })
 		if rp.err != "" {

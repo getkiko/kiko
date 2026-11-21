@@ -1,6 +1,9 @@
 package kit
 
 import (
+	"image/png"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -77,4 +80,50 @@ func TestBrowseTokenInputChevronToggles(t *testing.T) {
 	}, 640, 600)
 	tt.Frame()
 	clickTwice(t, tt, 20+300-12, 35, "Gamma")
+}
+
+// A long detail (an address) shortens before the name: the name stays.
+func TestSearchSelectKeepsNameBesideLongDetail(t *testing.T) {
+	value := ""
+	options := []Option{{Value: "a", Label: "香港 01 · 家宽 IEPL 专线", Tag: "VLESS", Detail: "a-very-long-server-name.example-provider.com:443"}}
+	tt := ui.NewTester(func(c *ui.Context) {
+		Apply(c)
+		c.Root().Background(T(c).Surface).Padding(20)
+		SearchSelect(c, "pick", &value, options, SearchSelectOptions{Label: "出口", Width: 220})
+	}, 640, 600)
+	tt.Frame()
+	if err := tt.Click("出口：请选择"); err != nil {
+		t.Fatalf("open: %v; %q", err, tt.Texts())
+	}
+	tt.Frame()
+	name, ok := tt.Find("香港 01 · 家宽 IEPL 专线")
+	tag, _ := tt.Find("VLESS")
+	// Find gives the row (named by the label): the tag comes after the
+	// whole name, about 150 DIPs in.
+	if !ok || tag.X-name.X < 140 {
+		t.Fatalf("name %+v tag %+v", name, tag)
+	}
+}
+
+func TestSearchSelectTagShot(t *testing.T) {
+	dir := os.Getenv("KIT_PREVIEW_DIR")
+	if dir == "" {
+		t.Skip()
+	}
+	value := "b"
+	options := []Option{{Value: "", Label: "不加载"},
+		{Value: "a", Label: "香港 01 · 家宽 IEPL 专线", Tag: "VLESS", Detail: "a-very-long-server-name.example-provider.com:443"},
+		{Value: "b", Label: "日本 02", Tag: "SS", Detail: "jp.example:8388"},
+		{Value: "c", Label: "直连", Tag: "直连"}}
+	tt := ui.NewTester(func(c *ui.Context) {
+		Apply(c)
+		c.Root().Background(T(c).Surface).Padding(20)
+		SearchSelect(c, "pick", &value, options, SearchSelectOptions{Label: "出口", Width: 220})
+	}, 420, 320)
+	tt.Frame()
+	_ = tt.Click("出口：日本 02")
+	tt.Frame()
+	f, _ := os.Create(filepath.Join(dir, "searchselect-tags.png"))
+	_ = png.Encode(f, tt.Image())
+	f.Close()
 }

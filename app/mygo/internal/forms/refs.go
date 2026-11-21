@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/getkiko/kiko/app/mygo/internal/kit"
 	"github.com/getkiko/kiko/app/mygo/internal/model"
+	"github.com/getkiko/kiko/app/mygo/internal/nodeview"
 	"github.com/getkiko/kiko/app/mygo/internal/schema"
 )
 
@@ -44,14 +45,6 @@ func DocRefOptions(doc *model.Doc) []RefOption {
 		}
 	}
 	return out
-}
-
-// protocolLabel capitalizes a protocol type, as "Vless".
-func protocolLabel(t string) string {
-	if t == "" {
-		return ""
-	}
-	return strings.ToUpper(t[:1]) + t[1:]
 }
 
 // targetAddress is an outbound's server address, as "[::1]:443".
@@ -98,14 +91,11 @@ func OutboundOptions(doc *model.Doc, exclude ...string) []kit.Option {
 				disabled = true
 			}
 		}
-		detail := protocolLabel(t.Type())
-		if address := targetAddress(t); address != "" {
-			detail += " · " + address
-		}
+		detail := targetAddress(t)
 		if disabled {
-			detail += " · 已关闭"
+			detail = strings.TrimPrefix(detail+" · 已关闭", " · ")
 		}
-		out = append(out, kit.Option{Value: t.ID(), Label: t.Tag(), Detail: detail})
+		out = append(out, kit.Option{Value: t.ID(), Label: t.Tag(), Tag: nodeview.ProtocolTag(t.Type()), Detail: detail})
 	}
 	return out
 }
@@ -132,21 +122,23 @@ func DNSDetourSelect(c *ui.Context, key any, doc *model.Doc, server string, valu
 		target = model.DNSServerByID(doc, server)
 	}
 	supports := target != nil && target.Type != "local" && containsString(dialerDNSTypes, target.Type)
-	options := []kit.Option{{Value: "", Label: "协议默认"}}
+	first := "协议默认"
 	if supports {
-		options[0].Label = "直连（服务器拨号）"
-		for _, r := range refs {
-			options = append(options, kit.Option{Value: r.ID, Label: r.Tag, Detail: strings.ToUpper(r.Type)})
-		}
+		first = "直连（服务器拨号）"
 	}
-	found := false
-	for _, o := range options {
-		found = found || o.Value == *value
+	return OutboundSelect(c, key, doc, value, OutboundSelectOptions{
+		Label: label, Lead: []kit.Option{{Value: "", Label: first}}, Only: refSet(refs),
+		NoTargets: !supports, Disabled: !supports && *value == "",
+	})
+}
+
+// refSet is the ids of refs, for OutboundSelectOptions.Only.
+func refSet(refs []RefOption) func(string) bool {
+	ids := map[string]bool{}
+	for _, r := range refs {
+		ids[r.ID] = true
 	}
-	if !found {
-		options = append(options, kit.Option{Value: *value, Label: *value + " · 需修正引用"})
-	}
-	return kit.Select(c, key, value, options, kit.SelectOptions{Label: label, Disabled: !supports && *value == ""})
+	return func(id string) bool { return ids[id] }
 }
 
 // refField chooses an outbound, an inbound or a DNS server by id.
@@ -191,23 +183,29 @@ func (f *form) refField(field schema.Field) {
 		if f.fc.ExcludeRef != "" {
 			exclude = append(exclude, f.fc.ExcludeRef)
 		}
-		for _, o := range OutboundOptions(f.fc.Doc, exclude...) {
-			if usable[o.Value] {
-				options = append(options, o)
+		if OutboundSelect(c, "ref", f.fc.Doc, &value, OutboundSelectOptions{Label: field.Label, Lead: []kit.Option{{Value: "", Label: empty}},
+			Exclude: exclude, Only: func(id string) bool { return usable[id] }}).Changed() {
+			if value == "" {
+				f.set(field.Key, nil)
+			} else {
+				f.set(field.Key, value)
 			}
 		}
 	}
-	options = append([]kit.Option{{Value: "", Label: empty}}, options...)
-	// A reference to a target no longer offered (disabled, deleted or the
-	// entity itself) stays visible, marked, instead of reading as none.
-	if value != "" && !slices.ContainsFunc(options, func(o kit.Option) bool { return o.Value == value }) {
-		options = append(options, kit.Option{Value: value, Label: f.staleRefLabel(field.Type, value), Detail: "需修正引用"})
-	}
-	if kit.Select(c, "ref", &value, options, kit.SelectOptions{Label: field.Label}).Changed() {
-		if value == "" {
-			f.set(field.Key, nil)
-		} else {
-			f.set(field.Key, value)
+	if field.Type == schema.RefDNS || field.Type == schema.RefIn {
+		options = append([]kit.Option{{Value: "", Label: empty}}, options...)
+		// A reference to a target no longer offered (disabled, deleted or
+		// the entity itself) stays visible, marked, instead of reading as
+		// none. OutboundSelect does so for outbounds.
+		if value != "" && !slices.ContainsFunc(options, func(o kit.Option) bool { return o.Value == value }) {
+			options = append(options, kit.Option{Value: value, Label: f.staleRefLabel(field.Type, value), Detail: "需修正引用"})
+		}
+		if kit.Select(c, "ref", &value, options, kit.SelectOptions{Label: field.Label}).Changed() {
+			if value == "" {
+				f.set(field.Key, nil)
+			} else {
+				f.set(field.Key, value)
+			}
 		}
 	}
 	if available == 0 {

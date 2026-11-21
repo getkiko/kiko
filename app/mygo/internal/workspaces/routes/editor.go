@@ -449,13 +449,8 @@ func (w *Workspace) identityForm(c *ui.Context, doc *model.Doc, e *ruleEditor) {
 
 // targetSelect is the searchable Target Outbound choice.
 func (w *Workspace) targetSelect(c *ui.Context, doc *model.Doc, e *ruleEditor, label string) {
-	options := []kit.Option{{Value: "", Label: "请选择"}}
 	value := e.route.Outbound.ID()
-	for _, r := range forms.DocRefOptions(doc) {
-		options = append(options, kit.Option{Value: r.ID, Label: r.Tag, Detail: upper(r.Type)})
-	}
-	options = withUnknown(options, value)
-	if kit.SearchSelect(c, "target", &value, options, kit.SearchSelectOptions{Label: label, Placeholder: "搜索出口名称或类型"}).Changed() {
+	if forms.OutboundSelect(c, "target", doc, &value, forms.OutboundSelectOptions{Label: label, Lead: []kit.Option{{Value: "", Label: "请选择"}}}).Changed() {
 		e.route.Outbound = model.RefOf(value)
 	}
 }

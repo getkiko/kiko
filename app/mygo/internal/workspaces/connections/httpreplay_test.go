@@ -146,24 +146,6 @@ func TestReplayFormRequest(t *testing.T) {
 	}
 }
 
-func TestReplayOutbounds(t *testing.T) {
-	if replayOutbounds(nil) != nil {
-		t.Fatal("nil doc")
-	}
-	d := model.EmptyDoc("")
-	add := func(id, tag string, on bool) {
-		d.Outbounds = append(d.Outbounds, &model.Outbound{Entity: model.Entity{ID: id, Tag: tag, Enabled: on}, Kind: "outbound", Type: "direct", Fields: model.Fields{}})
-	}
-	add("a", "香港", true)
-	add("b", "美国", true)
-	add("c", "停用", false)
-	add("d", "香港", true)
-	got := replayOutbounds(d)
-	if !slices.Equal(got, []string{"直连", "香港", "美国", "香港 2"}) {
-		t.Fatalf("tags %v", got)
-	}
-}
-
 func TestReplayUpsert(t *testing.T) {
 	h := newHTTPHarness(t, 1440, 820, enabled(), newHTTPFeed(), nil)
 	m := h.w.http

@@ -73,7 +73,7 @@ func SearchSelectMatches(options []Option, value, query string) (visible []Optio
 	needle := normalizeSearch(query)
 	var matches []Option
 	for _, o := range options {
-		if strings.Contains(normalizeSearch(o.Label+" "+o.Detail+" "+o.Value), needle) {
+		if strings.Contains(normalizeSearch(o.Label+" "+o.Tag+" "+o.Detail+" "+o.Value), needle) {
 			matches = append(matches, o)
 		}
 	}
@@ -202,7 +202,8 @@ func searchSelectPanel(c *ui.Context, trigger ui.Element, s *searchSelectState, 
 	}
 	ui.PopoverBase(c, trigger, &s.open, func(panel ui.Element) {
 		w, h := c.Size()
-		Popup(c, panel).Width(min(width, max(w-32, 200))).Padding(6).Gap(4).Label("选择" + o.Label)
+		panelW := min(width, max(w-32, 200))
+		Popup(c, panel).Width(panelW).Padding(6).Gap(4).Label("选择" + o.Label)
 		AttachPopover(c, panel, trigger, ui.AnchorBottomStart, ui.AnchorTopStart, 4, max(min(h*0.6, 420), 200))
 		if o.OnOpen != nil && !s.announced {
 			s.announced = true
@@ -265,12 +266,29 @@ func searchSelectPanel(c *ui.Context, trigger ui.Element, s *searchSelectState, 
 					if !chosen {
 						mark.Invisible()
 					}
-					ui.Text(c, option.Label).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
+					// The name shows whole, then the tag, as a node row
+					// does; only the detail (an address) shortens.
+					if option.Detail == "" && option.Tag == "" {
+						ui.Text(c, option.Label).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
+					} else {
+						// Room is kept for the panel's and row's padding, the
+						// check mark and a tag, in the width shown.
+						ui.Text(c, option.Label).SingleLine().Ellipsis("…").Shrink(0).MaxWidth(max(panelW-120, 80))
+					}
+					if option.Tag != "" {
+						fg, border := k.Label2, k.Hairline
+						if i == s.active {
+							fg, border = k.OnAccent, k.OnAccent.Alpha(0.5)
+						}
+						CapsuleTag(c, option.Tag, fg, ui.Color{}, border)
+					}
 					if option.Detail != "" {
-						d := ui.Text(c, option.Detail).SingleLine().FontSize(FontCaption).Shrink(0)
+						d := ui.Text(c, option.Detail).SingleLine().Ellipsis("…").FontSize(FontCaption).Grow(1).Shrink(1).MinWidth(0)
 						if i != s.active {
 							d.TextColor(k.Label3)
 						}
+					} else if option.Tag != "" {
+						ui.Spacer(c)
 					}
 				})
 				if item.Clicked() {

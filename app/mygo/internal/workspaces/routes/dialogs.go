@@ -238,8 +238,7 @@ func (w *Workspace) deviceDialogView(c *ui.Context, doc *model.Doc) {
 			if local && model.LocalActiveScope(doc) == model.LocalDeviceID {
 				first = "核心默认"
 			}
-			options := withUnknown(append([]kit.Option{{Value: "", Label: first}}, outputOptions(doc)...), d.draft.Final)
-			kit.Select(c, "final", &d.draft.Final, options, kit.SelectOptions{Label: "设备默认出口"})
+			forms.OutboundSelect(c, "final", doc, &d.draft.Final, forms.OutboundSelectOptions{Label: "设备默认出口", Lead: []kit.Option{{Value: "", Label: first}}})
 		})
 		if local {
 			help(c, "自动地址包含本机网卡、回环与 TUN 地址，应用配置时刷新。补充地址随配置保存；本机范围优先于设备网段。")

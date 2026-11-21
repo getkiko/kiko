@@ -161,8 +161,15 @@ func TestFormRefOptions(t *testing.T) {
 		{Entity: model.Entity{ID: "b", Tag: "B", Enabled: false}, Type: "direct", Fields: model.Fields{}},
 	}
 	options := OutboundOptions(doc, "x")
-	if len(options) != 2 || options[0].Detail != "Vless · [::1]:443" || options[1].Detail != "Direct · 已关闭" {
+	if len(options) != 2 || options[0].Tag != "VLESS" || options[0].Detail != "[::1]:443" || options[1].Tag != "直连" || options[1].Detail != "已关闭" {
 		t.Errorf("options %+v", options)
+	}
+	// Every outbound choice offers the enabled ones only.
+	if targets := TargetOptions(doc); len(targets) != 1 || targets[0].Value != "a" || targets[0].Label != "A" {
+		t.Errorf("targets %+v", targets)
+	}
+	if stale := staleTarget(doc, "b"); stale.Label != "B" || stale.Detail != "已关闭 · 需修正" {
+		t.Errorf("stale %+v", stale)
 	}
 	refs := DocRefOptions(doc)
 	if len(refs) != 1 || refs[0].ID != "a" {
