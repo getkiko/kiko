@@ -212,6 +212,8 @@ type ConnectionQuery struct {
 	Sort   string
 	// Rule keeps the connections of one route table rule by its ID.
 	Rule string
+	// HideInbounds leaves out the connections of these inbounds.
+	HideInbounds []string
 	// Order is "asc" or "desc"; empty is the column's default.
 	Order string
 	// Group is "none", "app", "parent", "rootDomain" or "domain".
@@ -236,6 +238,9 @@ func (q ConnectionQuery) Params() string {
 	set("state", q.State)
 	set("search", q.Search)
 	set("rule", q.Rule)
+	for _, tag := range sortedStrings(q.HideInbounds) {
+		values.Add("hideInbound", tag)
+	}
 	for facet, list := range q.Filter {
 		for _, value := range sortedStrings(list) {
 			if value != "" {
@@ -336,10 +341,10 @@ type CloseResult struct {
 // CloseAllConnections does. It is the one close by condition, shared by
 // the list's "Close listed connections" and the rules' "Interrupt connections".
 func (c *Client) CloseConnections(ctx context.Context, q ConnectionQuery) (CloseResult, error) {
-	keep := ConnectionQuery{Search: q.Search, Filter: q.Filter, Rule: q.Rule}
+	keep := ConnectionQuery{Search: q.Search, Filter: q.Filter, Rule: q.Rule, HideInbounds: q.HideInbounds}
 	var result CloseResult
 	params := keep.Params()
-	if q.Search == "" && !q.filtered() && q.Rule == "" {
+	if q.Search == "" && !q.filtered() && q.Rule == "" && len(q.HideInbounds) == 0 {
 		// Nothing limits the close: it is "Close all", which the server wants said.
 		params = "?all=1"
 	}

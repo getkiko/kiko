@@ -22,14 +22,20 @@ func (w *Workspace) faviconRows(c *ui.Context, doc *model.Doc) {
 			kit.Badge(c, "需修正", kit.DangerTone)
 		}
 		value := doc.FaviconOutbound.ID()
-		options := append([]kit.Option{{Value: "", Label: "不加载"}}, forms.OutboundOptions(doc)...)
-		if kit.SearchSelect(c, "favicon-outbound", &value, options, kit.SearchSelectOptions{Label: "网站图标", Width: 220}).Changed() {
+		if forms.OutboundSelect(c, "favicon-outbound", doc, &value, forms.OutboundSelectOptions{Label: "网站图标", Width: 220,
+			Lead: []kit.Option{{Value: "", Label: "不加载"}}}).Changed() {
 			w.update(func(d *model.Doc) {
 				d.FaviconOutbound = model.Ref{}
 				if value != "" {
 					d.FaviconOutbound = model.Some(value)
 				}
 			})
+		}
+	})
+	kit.SettingsRow(c, "在连接中隐藏图标请求", "", func() {
+		hide := favicon.HideConnections(w.env)
+		if kit.Switch(c, &hide, "在连接中隐藏图标请求").Changed() {
+			favicon.SetHideConnections(w.env, hide)
 		}
 	})
 	if w.favicons == nil && !w.faviconLoading && !w.faviconFailed {

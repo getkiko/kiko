@@ -32,10 +32,10 @@ const (
 	// fetchTimeout bounds a request: the server may wait for a fetcher and
 	// the outbound's proxy, then fetch the site.
 	fetchTimeout = 50 * time.Second
-	// missRetry is how long a site without an icon is not asked again;
-	// downRetry, while the outbound cannot fetch; failRetry, after another
-	// failed request.
-	missRetry = time.Hour
+	// missRetry is how long a site without an icon, or out of reach (the
+	// server keeps its mark as long), is not asked again; downRetry, while
+	// the outbound cannot fetch; failRetry, after another failed request.
+	missRetry = 3 * time.Hour
 	downRetry = 5 * time.Minute
 	failRetry = time.Minute
 )
@@ -196,7 +196,7 @@ func (s *Store) load(root, outbound string, e *entry) {
 	// longer than a failure to reach it.
 	var apiErr *api.Error
 	switch {
-	case errors.As(err, &apiErr) && (apiErr.Status == http.StatusNotFound || apiErr.Status == http.StatusBadRequest):
+	case errors.As(err, &apiErr) && (apiErr.Status == http.StatusNotFound || apiErr.Status == http.StatusBadRequest || apiErr.Status == http.StatusBadGateway):
 		retry = missRetry
 	case errors.As(err, &apiErr) && apiErr.Status == http.StatusServiceUnavailable:
 		retry = downRetry

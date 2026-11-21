@@ -491,6 +491,9 @@ func (q connQuery) conditions(tab bool) []connCondition {
 	if rule := q.Rule; rule != "" {
 		conds = append(conds, connCondition{pass: func(row *connRow) bool { return row.RuleKey == rule }})
 	}
+	if hide := q.HideInbounds; len(hide) > 0 {
+		conds = append(conds, connCondition{pass: func(row *connRow) bool { return !slices.Contains(hide, row.Conn.Inbound) }})
+	}
 	if app := q.App; app != "" {
 		conds = append(conds, connCondition{pass: func(row *connRow) bool {
 			return row.Conn.ProcessInfo != nil && pathInApp(row.Conn.ProcessInfo.ProcessPath, app)
@@ -619,6 +622,10 @@ func facetConnectionRows(all []*connRow, q connQuery) (matched []*connRow, count
 	}
 	tally := newConnFacetTally()
 	for _, row := range all {
+		// Hidden inbounds count nowhere, not even in the totals.
+		if len(q.HideInbounds) > 0 && slices.Contains(q.HideInbounds, row.Conn.Inbound) {
+			continue
+		}
 		totals.add(row)
 		miss := facetMiss(len(conds), func(i int) bool { return conds[i].pass(row) })
 		if miss == facetNone {
@@ -1222,13 +1229,17 @@ type connQuery struct {
 	// Rule keeps the connections of one route table rule, by its hit key
 	// (ruleHitKey: the rule's ID, "final:<owner>" for a default outbound;
 	// rule=, hidden from the filter pane); "" keeps all.
-	Rule       string
-	Sort       connColumn
-	Descending bool
-	Group      connGroupMode
-	Expansion  connExpansion
-	Page       int
-	Limit      int
+	Rule string
+	// HideInbounds leaves out the connections of these inbounds, as the
+	// website icons' own (hideInbound=, repeated; hidden from the filter
+	// pane).
+	HideInbounds []string
+	Sort         connColumn
+	Descending   bool
+	Group        connGroupMode
+	Expansion    connExpansion
+	Page         int
+	Limit        int
 }
 
 // connCounts are the rows of each tab.

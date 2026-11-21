@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/getkiko/kiko/app/mygo/internal/api"
 	"github.com/getkiko/kiko/app/mygo/internal/env"
+	"github.com/getkiko/kiko/app/mygo/internal/favicon"
 	"github.com/getkiko/kiko/app/mygo/internal/kit"
 	"github.com/getkiko/kiko/app/mygo/internal/nodeview"
 	"github.com/getkiko/kiko/app/mygo/internal/store"
@@ -235,6 +236,9 @@ func (m *connMonitor) query() api.ConnectionQuery {
 	}
 	if m.connID != "" {
 		q.Filter["id"] = []string{m.connID}
+	}
+	if favicon.HideConnections(m.env) {
+		q.HideInbounds = []string{favicon.Inbound}
 	}
 	if m.mode != groupNone {
 		expanded := m.expanded()

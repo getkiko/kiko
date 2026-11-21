@@ -345,6 +345,25 @@ func TestConnectionQueryPID(t *testing.T) {
 	}
 }
 
+// hideInbound leaves the connections of an inbound out of the rows, the
+// facets and the totals, as the website icons' own.
+func TestConnectionQueryHidesInbound(t *testing.T) {
+	s := newGRPCTestServer(t)
+	now := time.Now()
+	event := func(id, inbound string) *daemon.ConnectionEvent {
+		conn := &daemon.Connection{Id: id, Domain: id + ".test", CreatedAt: now.UnixMilli(), Network: "tcp", Inbound: inbound}
+		return &daemon.ConnectionEvent{Type: daemon.ConnectionEventType_CONNECTION_EVENT_NEW, Id: id, Connection: conn}
+	}
+	s.connections.ingest("one", &daemon.ConnectionEvents{Reset_: true, Events: []*daemon.ConnectionEvent{event("a", "mixed-in"), event("b", "favicon"), event("c", "favicon")}}, now)
+	if page := queryPage(t, s, ""); page.Total != 3 {
+		t.Fatalf("all %+v", page)
+	}
+	page := queryPage(t, s, "?hideInbound=favicon")
+	if page.Total != 1 || page.Rows[0].ID != "a" || page.Totals.All != 1 || len(page.Facets["inbound"]) != 1 {
+		t.Fatalf("hidden %+v", page)
+	}
+}
+
 // Rates come from the last update and lapse; a core restart closes the
 // rows of the old run with its reason; queries answer 304 while unchanged
 // and gzip large answers.

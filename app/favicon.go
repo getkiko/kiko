@@ -39,8 +39,10 @@ const (
 	faviconMaxEntries = 2000
 	faviconMaxBytes   = 64 << 20
 	// faviconWaitFor is how long a site an outbound could not reach, or
-	// that answered with an error, is not asked again through it.
-	faviconWaitFor = 15 * time.Minute
+	// that answered with an error, is not asked again through it: as long
+	// as the clients wait after a miss, so that a site out of reach is not
+	// fetched over and over.
+	faviconWaitFor = 3 * time.Hour
 	// faviconFetchers bounds the sites fetched at once; faviconRefreshers,
 	// the stale icons fetched again at once, among them.
 	faviconFetchers   = 4
@@ -179,7 +181,8 @@ func (f *favicons) file(root, ext string) string {
 
 // handleFavicon is GET /api/v1/favicon?domain=&outbound=: the icon of
 // domain's root, fetched through outbound, the tag in the running core;
-// 404 for a site without one, 503 while the outbound cannot fetch.
+// 404 for a site without one, 502 for one out of reach (asked again after
+// faviconWaitFor), 503 while the outbound cannot fetch.
 func (s *server) handleFavicon(w http.ResponseWriter, r *http.Request) {
 	root, err := faviconRoot(r.URL.Query().Get("domain"))
 	outbound := strings.TrimSpace(r.URL.Query().Get("outbound"))
@@ -194,8 +197,14 @@ func (s *server) handleFavicon(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": proxyErr.Error()})
 	case errors.Is(err, errNoFavicon):
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "该网站没有图标"})
+	case errors.Is(err, errUnreachable):
+		// The site was out of reach, timed out or failed: not asked again
+		// for faviconWaitFor, which a client waits as well (502, as the
+		// proxy's own failure is 503).
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "暂时无法获取网站图标"})
 	case err != nil:
-		// Unreachable, timed out or cancelled: ask again later.
+		// The site was not asked: no fetcher freed in time, or the request
+		// went away. Soon again.
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "暂时无法获取网站图标"})
 	default:
 		w.Header().Set("Content-Type", "image/png")

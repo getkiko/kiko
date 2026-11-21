@@ -137,6 +137,11 @@ func parseConnectionQuery(values url.Values) (connQuery, error) {
 	}
 	q.App = values.Get("app")
 	q.Rule = values.Get("rule")
+	if hide := values["hideInbound"]; len(hide) > 16 {
+		return q, errors.New("hideInbound 过多")
+	} else {
+		q.HideInbounds = slices.DeleteFunc(slices.Clone(hide), func(v string) bool { return v == "" })
+	}
 	if text := values.Get("page"); text != "" {
 		if q.Page, err = strconv.Atoi(text); err != nil || q.Page < 0 {
 			return q, errors.New("page 无效")
@@ -420,7 +425,7 @@ func (s *server) closeMatchingConnections(w http.ResponseWriter, r *http.Request
 			named[id] = true
 		}
 		targets = slices.DeleteFunc(slices.Clone(active), func(row *connRow) bool { return !named[row.Conn.ID] })
-	} else if len(q.Filter) == 0 && strings.TrimSpace(q.Search) == "" && q.PID == 0 && q.App == "" && q.Rule == "" {
+	} else if len(q.Filter) == 0 && strings.TrimSpace(q.Search) == "" && q.PID == 0 && q.App == "" && q.Rule == "" && len(q.HideInbounds) == 0 {
 		// Closing everything must be asked for: a request that lost its
 		// limits (a misspelled key, an empty body) must not close all.
 		if r.URL.Query().Get("all") != "1" {

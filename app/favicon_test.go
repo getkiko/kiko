@@ -326,3 +326,39 @@ func TestFaviconRefusedIsNotMiss(t *testing.T) {
 		t.Error("a limited site was marked as without an icon")
 	}
 }
+
+// A site out of reach is not fetched again for three hours: the clients
+// wait as long, so that it is not asked over and over.
+func TestFaviconUnreachableWaitsHours(t *testing.T) {
+	hits := 0
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		http.Error(w, "down", http.StatusBadGateway)
+	}))
+	defer srv.Close()
+	f := newFavicons(nil, t.TempDir())
+	f.client = func(context.Context, string) (*http.Client, error) { return siteClient(srv), nil }
+	now := time.Now()
+	f.now = func() time.Time { return now }
+	if _, err := f.icon(context.Background(), "down.com", "x"); !errors.Is(err, errUnreachable) {
+		t.Fatalf("error %v", err)
+	}
+	first := hits
+	now = now.Add(2*time.Hour + 59*time.Minute)
+	if _, err := f.icon(context.Background(), "down.com", "x"); !errors.Is(err, errUnreachable) || hits != first {
+		t.Fatalf("asked again within 3 hours: %v, %d hits", err, hits)
+	}
+	now = now.Add(2 * time.Minute)
+	_, _ = f.icon(context.Background(), "down.com", "x")
+	if hits == first {
+		t.Fatal("not asked again after 3 hours")
+	}
+}
+
+// Only a site out of reach answers 502, waited for hours; a fetch that
+// never started (no fetcher freed in time) answers 503, asked again soon.
+func TestFaviconQueueTimeoutIsNotUnreachable(t *testing.T) {
+	if errors.Is(context.DeadlineExceeded, errUnreachable) {
+		t.Fatal("a queue timeout reads as a site out of reach")
+	}
+}
